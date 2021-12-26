@@ -1,0 +1,190 @@
+8 Queens: be ok with adding the words in non-standard order to deal with compressed constraints
+Branch-and-bound: develop a heuristic scoring function, and optimize for the heuristic
+
+In both cases we are pruning the search space:
+1. In constraint programming you are pruning based on hard constraints ("branch-and-prune")
+  i. at each step, focus on the word that has the fewest available options positionally (intuition was RIGHT about starting with longest words)
+2. In branch-and-bound you are pruning based on a scoring function (implicit, in our case)
+
+"relaxations" : (1) assume anything can overlap with anything, assume no board edge behavior
+
+Ambiguous what the decision variables should be.
+In my case it most be 1 decision per word, or else per word axis
+Or could do it on a per-letter-within-with basis, where I tether the letters together pairwise
+
+Need to encode word positions (letter positions?) such that it is easy to prune them away when a new word is placed down
+
+------------------------------------------------
+
+Use MiniZinc language/GUI with OR-tools plugin
+
+Prototype a few different problem formulations using the available language constructs
+
+Test on a few existing WonderWords puzzles to make sure its fast enough; can export as PDF to get copy-able text
+
+Can either look *just* for satisfiability, i.e. run multiple versions with slightly varying word sets in parallel
+Or else formulate as an optimization problem where we're trying to maximize the number of crammed-in words (might lead to boring puzzles and need an additional orientation-variability maximization term)
+
+------------------------------------------------
+
+Can write simple AND + XOR contraints <-- JUST MAKE IT OR INSTEAD, MUCH FASTER TO CHECK, AND PROBABILITY OF DUPLICATE IS INFINITESIMAL
+
+Can collapse each (i,j) position down to a single position p_i  <-- THIS IS NOT NECESSARY, KEEP THE DOUBLE INDEX FOR SANITY
+Can have one large ((x1=l[p_i1] AND x2=l[p_i2] AND ... xn=l[p_in]) XOR (x1=l[p_j1] AND x2=l[p_j2] AND ... xn=l[p_jn]) XOR ...) for each word, with all such expressions AND'ed together
+Represent the word constraint as "each letter in the word needs to be in these allowed positions" XOR "each letter in the word needs to be in these other allowed positions" XOR ...
+
+Therefore number of constrains is roughly:
+1. pi \in [0,254]
+2. length of each internal AND's between ~4-12 (avg ~6)
+3. number of XOR's ~1000
+4. number of words ~45-55 (avg ~50)
+
+Therefore number of individual constraints is:
+6 x 1000 x 50 = 300k
+And each constraint can be filled in with 255 values
+Since XORs mean that each line can be filled only 1 way, total state space size is upper-bounded by 255^300 (don't need the extra thousand in there)
+(naive tree search approach was 1000^50 (~255^40) this new way is *much* worse)
+
+** However not all positions need to be constrained, so... how to encode this? It returns a partial solution?
+
+x's are fixed (should call then c, they denote letters)
+What we're trying to figure are are the values of the l-array
+Note that the problem is not uniquely specified, and so there will be leftover values
+
+I think this is a good way to do it, a smart solver will quickly hammer away on the narrowed-down constraints
+Will need to unwind the solution at the end to figure out which words are where, and what there's room leftover for
+(can add a constraint that the number of leftover letters needs to be =X, or ≥X)
+
+In case it goes through the constraints in order, shuffle both the words and constraints before feeding them in
+Test solution on a small ~8x8 grid first
+
+Consider using within-solver loops to make things simpler/more compressed
+Can greatly compress things by writing things using loops; XOR combination of 8 (?) loops, each with internal loops for each AND block
+Check the size of the outputs to make sure they match the numbers on the google doc
+
+Can get 8x speed-up by encoding symmetries of the board... somehow
+Answer: For the longest word, restrict it to be in the forwards direction ; this only cuts down space by 2x? Could do 4x by limited to upper-left square if not for diagonals (?)
+Watch the lecture, then deal with it
+
+Symmetric is on the i's and j's
+For a valid solution, it stays valid until the following transformations:
+1. vertical flip: [i,j] --> [len(arr) - i - 1, j]
+2. horizontal flip: [i,j] --> [i, len(arr[0]) - j - 1]
+3. main diag flip: [i,j] --> [j,i]
+4. non-main diag flip: [i,j] --> (??)
+5. 90deg rotation: [i,j] --> (??)
+6. 180deg rotation: [i,j] --> (??)
+7. 270deg rotation: [i,j] --> (??)
+
+Unclear if all of these are needed, but why not
+
+See list of symmetries for n-queens problem (not exactly the same since can't swap rows/columns, but may be ok?)
+https://www.minizinc.org/doc-2.5.5/en/efficient.html
+
+/\  lex_lesseq(array1d(qb), [ qb[j,i] | i,j in 1..n ])                    <-- main diag flip
+/\  lex_lesseq(array1d(qb), [ qb[i,j] | i in reverse(1..n), j in 1..n ])  <-- vertical flip
+/\  lex_lesseq(array1d(qb), [ qb[j,i] | i in 1..n, j in reverse(1..n) ])  <-- ??
+/\  lex_lesseq(array1d(qb), [ qb[i,j] | i in 1..n, j in reverse(1..n) ])  <-- horizontal flip
+/\  lex_lesseq(array1d(qb), [ qb[j,i] | i in reverse(1..n), j in 1..n ])  <-- ??
+/\  lex_lesseq(array1d(qb), [ qb[i,j] | i,j in reverse(1..n) ])           <-- ??
+/\  lex_lesseq(array1d(qb), [ qb[j,i] | i,j in reverse(1..n) ])           <-- non-main diag flip (I think?)
+
+just assume it's fine and take it as is...
+
+Look at some simple examples in the documentation
+
+Use enum to actually encode the letters
+
+Figure out how it prints out the solution (then need to decode it)
+
+Look at basic 8-queens problem for inspiration
+Create very simple small problem to verify that contraints are correctly coded
+
+abc (top row)
+bcd (middle vertical)
+acd (main diagonal)
+edd (bottom row)
+ced (right vertical)
+
+-->
+
+abc (top row, fwd)
+dcb (middle vertical, bwd)
+acd (main diagonal, fwd)
+dde (bottom row, bwd)
+ced (right vertical, fwd)
+
+(check if it still works after the symmetries have been added)
+
+can say that dir_fwd > dir_bwd for a single row, but nothing else
+
+(don't need to use channeling, that was specific to the queen problem formulation)
+
+if normally need to pay for MiniZinc, don't need to worry about it since can download for free through Coursera
+
+(3,2)
+_ _ _ _ x
+_ _ _ x _
+_ o x _ _
+_ x _ _ _
+x _ _ _ _
+
+(4,3)
+_ _ _ _ x
+_ _ _ x _
+_ _ x _ _
+_ x o _ _
+x _ _ _ _
+
+
+(2,1)
+_ _ _ _ x
+o _ _ x _
+_ _ x _ _
+_ x _ _ _
+x _ _ _ _
+
+(5,4) = (5+1-1, 5+1-2)
+_ _ _ _ x
+_ _ _ x _
+_ _ x _ _
+_ x _ _ _
+x _ _ o _
+
+Can further speed things up by enforcing extra constraints:
+1. at least one intersection per word
+2. at least 20% diagonal
+3. at least 20% horizontal
+4. at least 20% vertical
+5. at least 30% parity-flipped
+6. num of each letter is ≤num occurrences within its words (can even removed unused letters from the enum list)
+
+
+make a VERY simple toy model to start (only spell forwards):
+
+a b
+_ c
+
+Tiny 7x7 ran for over a minute before I killed it... veeery bad sign
+
+Trivial 2-word version took it a full minute...
+How the hell does this thing scale...
+
+A, E, E, R, T, A, A,
+R, A, I, N, A, A, A,
+A, A, A, A, A, A, A,
+A, A, A, A, A, A, A,
+A, A, A, A, A, A, A,
+A, A, A, A, A, A, A,
+A, A, A, A, A, A, A
+
+
+Adding the symmetry-breaking constraint made it SLOWER, WTF; killed it after 3min...
+
+Constraining the alphabet sped things up enormously
+Probably it's search through huge numbers of nonsense "all a" boards
+Constrain it to max out counts of letters empirically
+
+Also order letters wrt their likelihood of actual occurrence
+
+rewrite to use ints rather than letters...
