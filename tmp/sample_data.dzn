@@ -1,0 +1,74 @@
+n = 18; % board size
+m = 69; % number of words
+
+max_len = 6; % length of the longest word being passed in
+word_lens = [ 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6 ]; % array giving the length of each word
+words = [| M, I, L, K, E, E
+	| S, O, D, A, E, E
+	| C, H, A, I, E, E
+	| M, A, T, E, E, E
+	| J, E, L, L, E, E
+	| F, L, A, N, E, E
+	| T, O, F, U, E, E
+	| I, C, E, D, E, E
+	| T, I, L, A, E, E
+	| C, A, F, E, E, E
+	| C, O, L, A, E, E
+	| J, A, V, A, E, E
+	| P, I, N, T, E, E
+	| M, O, C, H, A, E
+	| D, E, C, A, F, E
+	| V, E, N, T, I, E
+	| B, A, G, E, L, E
+	| S, L, U, R, P, E
+	| C, A, F, F, E, E
+	| C, A, F, F, E, E
+	| T, A, P, A, S, E
+	| S, W, I, S, H, E
+	| C, R, E, M, A, E
+	| F, I, Z, Z, Y, E
+	| Q, U, E, S, O, E
+	| L, E, C, H, E, E
+	| C, O, R, K, S, E
+	| C, R, E, M, E, E
+	| V, O, D, K, A, E
+	| E, T, H, E, R, E
+	| C, A, C, A, O, E
+	| Q, U, A, R, T, E
+	| R, U, M, B, A, E
+	| T, O, R, T, A, E
+	| C, R, E, A, M, E
+	| P, E, P, S, I, E
+	| D, A, I, R, Y, E
+	| D, R, I, N, K, E
+	| N, E, G, U, S, E
+	| S, C, O, N, E, E
+	| C, O, S, M, O, E
+	| V, E, N, T, E, E
+	| C, O, F, F, E, E
+	| M, O, J, I, T, O
+	| E, G, G, N, O, G
+	| F, R, A, P, P, E
+	| E, U, R, O, P, E
+	| F, R, A, N, C, E
+	| T, U, R, K, E, Y
+	| L, A, T, T, E, S
+	| M, A, T, C, H, A
+	| V, I, E, N, N, A
+	| T, A, C, U, B, A
+	| F, O, N, D, U, E
+	| G, E, L, A, T, O
+	| F, R, E, S, C, A
+	| P, U, L, Q, U, E
+	| F, R, O, T, H, Y
+	| N, I, B, B, L, E
+	| V, E, N, I, C, E
+	| B, R, U, L, E, E
+	| N, A, C, H, O, S
+	| L, O, N, D, O, N
+	| M, E, Z, C, A, L
+	| S, O, R, B, E, T
+	| P, A, N, E, R, A
+	| T, E, M, P, E, H
+	| P, O, B, L, E, T
+	| P, I, N, A, T, A |]; % array whose rows are words, with excess length padded with other letters

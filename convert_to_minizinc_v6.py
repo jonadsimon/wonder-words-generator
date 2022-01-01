@@ -3,209 +3,184 @@ import random
 from collections import Counter
 
 # num_words = 36
-board_size = 25
+board_size = 18
 
 def get_minizinc_code():
-    raw_words = """robot
-mechanical
-humanoid
-prosthetic
-cybernetic
-robotlike
-sonar
-artificial intelligence
-android
-simulator
-nasa
-cyborg
-machine
-autonomous robot
-industrial robot
-inflatable
-device
-oxford english dictionary
-isaac asimov
-submersible
-unmanned
-analog science fiction and fact
-submarine
-mouse
-wheeled
-lidar
-simulation
-animatronic
-miniature
-radar
-laser
-robonaut
-gravitation
-acceleration
-asimo
-automatic
-carnegie mellon university
-machinelike
-automatonlike
-czechoslovakia
-etymology
-cybernetics
-manufacturing
-battery
-weight
-muscle
-r.u.r.
-spring
-automaton
-runaround
-joule
-robots
-tactile
-unimate
-machinery
-keyboard
-automation
-optics
-machinist
-spacecraft
-automate
-underwater
-piezoelectricity
-decoder
-delft
-nanometre
-zamboni
-spaceship
-propulsion
-mechanical engineering
-orbiter
-machinima
-catapult
-electrical engineering
-wheel
-computer science
-gyroscope
-bio-inspired robotics
-craft
-classical times
-piloting
-submersibles
-hovercraft
-domestic robot
-astronauts
-equipped
-module
-outfitted
-military robot
-telescope
-bot
-docking
-parachutes
-satellites
-simulate
-tethered
-sensors
-simulators
-vtol
-karel čapek
-uav
-endeavour
-microscope
-manned
-gear
-scanning
-fairing
-reusable
-prototype
-pathfinder
-mechanistic
-drill
-orion
-prosthesis
-telescopes
-stairway
-pressurized
-stealthy
-microscopes
-orbiting
-pad
-honda
-drones
-apollo
-simulated
-josef capek
-iss
-simulating
-lander
-planetary
-inertia
-experiments
-medusa
-exoskeleton
-hubble
-spacex
-orbit
-payload
-abort
-fitted
-periscopes
-forelimbs
-shuttle
-earth
-gesture
-binoculars
-sling
-mars
-dummy
-winged
-canine
-sensing
-galileo
-jet
-payloads
-tunneling
-modules
-science fiction
-reaction
-prehensility
-moment
-schunk
-pulley
-toilet
-50-foot
-hardware
-three laws of robotics
-contraption
-remote-controlled
-norbert wiener
-comber
-mainframe
-teletype
-somersault
-computer
-trot
-cpu
-mechanic
-flame
-aibo
-processor
-ballbot
-momentum
-minicomputer
-motherboard
-microprocessor
-electromechanical
-potential energy
-microcomputer
-numerical control
-hand-held
-bios
-mindtool
-hill
-pda
-pneumatic actuator
-peripheral
-hydraulic drive system
-flight
-autopilot"""
+    raw_words = """espresso
+coffee
+cappuccino
+milk
+café au lait
+mocha
+sip
+soda
+mojito
+caffe latte
+decaf
+venti
+lemonade
+macchiato
+frappuccino
+milkshake
+martini
+eggnog
+bagel
+chai
+granola
+slurp
+coffeemaker
+biscotti
+creamer
+frappe
+coffee shop
+smoothie
+europe
+scandinavia
+france
+hot toddy
+french language
+caffe
+mate
+caffeine
+caffein
+turkey
+lattes
+quaffing
+matcha
+caffè
+tequila
+sipping
+jell
+vienna
+tacuba
+tapas
+fondue
+trieste
+swish
+english language
+potpourri
+hazelnut
+crema
+gelato
+fizzy
+fresca
+pulque
+queso
+cholula
+english orthography
+tea
+cupcake
+flan
+leche
+italian language
+percolator
+bagatelle
+corks
+absinthe
+RELATED WORDS CONTINUE AFTER ADVERTISEMENT
+liqueur
+desportivo
+creme
+vodka
+chocolates
+ether
+diethyl
+yoghurt
+demande
+uncorked
+cacao
+quart
+frothy
+nibble
+champagne
+rumba
+tofu
+iced
+cappuccinos
+tila
+groucho
+dessert
+torta
+tiramisu
+ghirardelli
+margaritas
+caf
+venice
+coffeehouse
+brulee
+wiener melange
+cafe
+nachos
+chocolate
+caffeinated
+cachaca
+london
+mezcal
+custard
+plumpjack
+masala chai
+sorbet
+nutella
+pomodoro
+daiquiri
+mochas
+panera
+tempeh
+martinis
+sangria
+chalice
+cream
+poblet
+lucimar
+soufflé
+granita
+pinata
+tchibo
+lavazza
+milonga
+12-pack
+cubano
+milkshakes
+baller
+yeshua
+beverage
+smoothies
+refried
+lotion
+carafe
+spanish language
+pepsi
+mug
+cup
+dairy
+soy milk
+cornerstone
+teacup
+pannikin
+cola
+posset
+imbibe
+drink
+nonfat
+almond milk
+drinkable
+potable
+teapot
+bottle
+negus
+croissant
+expresso
+java
+european cuisine
+grande
+doppio
+joe
+muffin
+scone
+pint
+margarita
+cosmo
+vente"""
 
     words = [raw_word.upper() for raw_word in raw_words.split('\n') if " " not in raw_word and len(raw_word) > 3 and raw_word.isalpha()]
 
@@ -224,7 +199,7 @@ autopilot"""
     num_words = None
     for k,l in enumerate(cum_len):
         if l >= board_size**2:
-            num_words = k + 6 # NORMALLY JUST k
+            num_words = k + 7 # NORMALLY JUST k
             break
     if not num_words:
         num_words = len(words)
@@ -238,7 +213,10 @@ autopilot"""
     # words = words[:num_words] # grab the num_words shortest words; sum of word lengths should be roughly equal to board size
 
     # Only need to return input params, particularly the Letters set, words array, and word length array
-    letters = set(''.join(words))
+
+    # is much more efficient if we return letters in frequency order, so the optimizer will start with the most-common letters
+    letters = list(zip(*Counter(''.join(words)).most_common()))[0]
+    # letters = set(''.join(words))
 
     word_lens = [len(word) for word in words]
 
@@ -246,7 +224,8 @@ autopilot"""
 
     max_word_len = max(word_lens)
 
-    dummy = next(iter(letters))
+    dummy = letters[0]
+    # dummy = next(iter(letters))
     words_arr = []
     for i,word in enumerate(words):
         word_arr = []

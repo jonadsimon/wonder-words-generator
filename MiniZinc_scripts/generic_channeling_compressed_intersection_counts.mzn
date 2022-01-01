@@ -1,112 +1,92 @@
-% 10 words, 7x7 board (46/49):
-%  - Chuffed,  no symmetry: 106msec
-%  - Chuffed,  w/ symmetry: 177msec
-% 11 words, 7x7 board (51/49):
-%  - Chuffed,  no symmetry: 121msec
-%  - Chuffed,  w/ symmetry: 635msec
-% 12 words, 7x7 board (56/49):
-%  - Chuffed,  no symmetry: 1m 0s
-%  - Chuffed,  w/ symmetry: XX
-
-% 20 words, 10x10 board (104/100):
-%  - Chuffed,  no symmetry: 2m 0s
-
-% 26 words, 12x12 board (142/144):
-%  - Chuffed,  no symmetry: 351msec (ran again with same failed 27-word params, and killed it after 2min... high sensitivity to initialization)
-
-% 27 words, 12x12 board (149/144):
-%  - Chuffed,  no symmetry: [killed after 13min]
-
-% 36 words, 15x15 board (217/225):
-%  - Chuffed,  no symmetry: [killed after 8min]
-
-% Conclusion: need to flip back [n/2,n] cardinality distribution
-
-% 21 words, 12x12 board (137/144):
-%  - Chuffed,  no symmetry: 782msec
-% 24 words, 13x13 board (163/169):
-%  - Chuffed,  no symmetry: 4m 55s
-% 27 words, 14x14 board (192/194):
-%  - Chuffed,  no symmetry: [killed after 25m 4s]
-
-
 % Variables whose values need to be passed in
 int: n = 20; % board size
-int: m = 68; % number of words
-int: max_len = 8; % length of the longest word being passed in
-enum Letter = { K, X, U, L, M, Y, Z, I, W, S, J, E, V, A, O, B, D, R, T, N, H, P, F, G, C }; % vocabulary (== all letters present in all words)
-array [1..m] of int: word_lens = [ 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 ]; % array giving the length of each word
-array [1..m,1..max_len] of Letter: words = [| S, A, R, S, A, A, A, A
-	| A, I, D, S, A, A, A, A
-	| P, E, R, U, A, A, A, A
-	| F, I, J, I, A, A, A, A
-	| B, I, R, D, A, A, A, A
-	| C, U, L, L, A, A, A, A
-	| P, I, G, S, A, A, A, A
-	| E, B, O, L, A, A, A, A
-	| V, I, R, U, S, A, A, A
-	| P, O, L, I, O, A, A, A
-	| A, V, I, A, N, A, A, A
-	| S, W, I, N, E, A, A, A
-	| S, P, A, I, N, A, A, A
-	| V, I, R, A, L, A, A, A
-	| A, L, E, R, T, A, A, A
-	| I, T, A, L, Y, A, A, A
-	| O, N, S, E, T, A, A, A
-	| A, V, E, R, T, A, A, A
-	| S, C, A, R, E, A, A, A
-	| T, Y, P, H, U, S, A, A
-	| C, A, N, C, E, R, A, A
-	| I, N, F, E, C, T, A, A
-	| A, F, R, I, C, A, A, A
-	| M, E, X, I, C, O, A, A
-	| D, E, N, G, U, E, A, A
-	| H, A, W, A, I, I, A, A
-	| P, L, A, G, U, E, A, A
-	| M, U, T, A, T, E, A, A
-	| S, T, R, A, I, N, A, A
-	| H, U, M, A, N, S, A, A
-	| R, A, B, I, E, S, A, A
-	| D, E, A, D, L, Y, A, A
-	| I, N, S, E, C, T, A, A
-	| M, A, L, A, D, Y, A, A
-	| I, M, M, U, N, E, A, A
-	| F, A, M, I, N, E, A, A
-	| T, H, R, E, A, T, A, A
-	| S, E, R, B, I, A, A, A
-	| M, E, A, S, L, E, S, A
-	| G, E, N, E, R, A, L, A
-	| D, I, S, E, A, S, E, A
-	| M, A, L, A, R, I, A, A
-	| V, A, C, C, I, N, E, A
-	| C, H, O, L, E, R, A, A
-	| L, E, P, R, O, S, Y, A
-	| E, N, D, E, M, I, C, A
-	| H, I, S, T, O, R, Y, A
-	| A, I, L, M, E, N, T, A
-	| S, C, O, U, R, G, E, A
-	| G, R, A, N, A, D, A, A
-	| T, S, U, N, A, M, I, A
-	| O, B, E, S, I, T, Y, A
-	| F, A, L, L, O, U, T, A
-	| I, L, L, N, E, S, S, A
-	| R, A, V, A, G, E, S, A
-	| E, P, I, D, E, M, I, C
-	| S, M, A, L, L, P, O, X
-	| P, A, T, H, O, G, E, N
-	| Z, O, O, N, O, S, I, S
-	| O, U, T, B, R, E, A, K
-	| G, U, A, N, C, H, E, S
-	| I, M, M, U, N, I, T, Y
-	| H, O, K, K, A, I, D, O
-	| S, Y, P, H, I, L, I, S
-	| P, A, R, A, S, I, T, E
-	| C, R, U, S, A, D, E, S
-	| R, A, V, A, G, I, N, G
-	| V, I, R, U, L, E, N, T |]; % array whose rows are words, with excess length padded with other letters
+int: m = 76; % number of words
+
+% array [1..n] of int: reindex = [1, 20, 2, 19, 3, 18, 4, 17, 5, 16, 6, 15, 7, 14, 8, 13, 9, 12, 10, 11];
+
+int: max_len = 7; % length of the longest word being passed in
+enum Letter = { E, A, R, I, T, S, P, N, O, L, C, D, G, U, H, M, F, Y, W, K, B, V, X, J }; % vocabulary (== all letters present in all words)
+array [1..m] of int: word_lens = [ 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7 ]; % array giving the length of each word
+array [1..m,1..max_len] of Letter: words = [| P, L, A, N, E, E, E
+	| S, H, O, W, E, E, E
+	| W, O, R, K, E, E, E
+	| L, O, O, P, E, E, E
+	| H, A, C, K, E, E, E
+	| N, E, W, S, E, E, E
+	| I, N, F, O, E, E, E
+	| B, I, L, L, E, E, E
+	| I, D, E, A, E, E, E
+	| C, O, D, E, E, E, E
+	| A, I, M, S, E, E, E
+	| F, U, L, L, E, E, E
+	| C, A, R, E, E, E, E
+	| P, A, R, T, E, E, E
+	| P, R, O, G, E, E, E
+	| D, E, B, U, G, E, E
+	| R, E, R, U, N, E, E
+	| P, A, T, C, H, E, E
+	| L, O, G, I, N, E, E
+	| F, O, C, U, S, E, E
+	| N, E, E, D, S, E, E
+	| S, T, U, D, Y, E, E
+	| C, A, L, L, S, E, E
+	| G, N, O, M, E, E, E
+	| S, Y, S, T, E, M, E
+	| P, A, R, S, E, R, E
+	| T, A, G, G, E, R, E
+	| S, C, H, E, M, E, E
+	| R, E, G, I, M, E, E
+	| S, E, R, I, E, S, E
+	| A, G, E, N, D, A, E
+	| G, R, A, N, T, S, E
+	| A, D, W, A, R, E, E
+	| B, U, D, G, E, T, E
+	| P, A, P, E, R, S, E
+	| D, O, C, K, E, T, E
+	| B, I, N, A, R, Y, E
+	| D, E, S, I, G, N, E
+	| S, C, H, E, M, A, E
+	| S, E, R, I, A, L, E
+	| S, P, I, D, E, R, E
+	| T, E, L, N, E, T, E
+	| T, E, C, H, I, E, E
+	| A, P, P, L, E, T, E
+	| K, L, U, D, G, E, E
+	| F, U, N, D, E, D, E
+	| O, F, F, E, R, S, E
+	| R, E, V, I, E, W, E
+	| P, O, L, I, C, Y, E
+	| K, E, Y, G, E, N, E
+	| E, F, F, O, R, T, E
+	| A, G, E, N, C, Y, E
+	| E, X, P, A, N, D, E
+	| P, U, B, L, I, C, E
+	| H, E, A, L, T, H, E
+	| L, A, U, N, C, H, E
+	| E, N, T, I, R, E, E
+	| S, I, T, C, O, M, E
+	| T, I, T, L, E, R, E
+	| P, R, O, J, E, C, T
+	| P, A, C, K, A, G, E
+	| O, U, T, L, I, N, E
+	| F, U, N, D, I, N, G
+	| S, E, R, V, I, C, E
+	| S, U, P, P, O, R, T
+	| S, P, Y, W, A, R, E
+	| P, A, T, T, E, R, N
+	| C, O, M, M, A, N, D
+	| R, O, U, T, I, N, E
+	| U, T, I, L, I, T, Y
+	| T, H, O, U, G, H, T
+	| E, P, I, S, O, D, E
+	| M, A, L, W, A, R, E
+	| A, I, R, T, I, M, E
+	| P, R, O, V, I, D, E
+	| S, P, E, C, I, A, L |]; % array whose rows are words, with excess length padded with other letters
 
 
 array [1..n,1..n] of var Letter: board;
+array [1..n,1..n] of int: overlap_count;
 
 array [1..m] of var int: word_pos_y; % values constrained by board size
 array [1..m] of var int: word_pos_x; % values constrained by board size
@@ -136,7 +116,53 @@ constraint forall(i in 1..m)(
   )
 );
 
+% % Count number of words occupying each square
+% constraint sum(i,j in 1..m where i < j)(
+%   sum(k in 1..word_lens[i])(
+%     sum(l in 1..word_lens[j])(
+%       int((word_pos_y[i] + word_delta_y[i]*(k-1) == word_pos_y[j] + word_delta_y[j]*(l-1)) /\ (word_pos_x[i] + word_delta_x[i]*(k-1) == word_pos_x[j] + word_delta_x[j]*(l-1)))
+%     )
+%   )
+% ) > 0.2 * 
+
+% Uses the triangle inqequality to check that a word overlaps a square
+function float: dist(y1, x2, y2, x2) = pow( pow(y1-y2, 2) + pow(x1-x2, 2), 0.5)
+function bool: word_overlaps_square(word_idx, board_y, board_x) =
+         abs(x1 - x2) + abs(y1 - y2);
+         
+constraint forall(i,j in 1..n)(
+  % check angles match & 
+  overlap_count[i,j] = sum(k in 1..m)(dist((word_pos_y[k],word_pos_x[k]),(i,j)) + ((i,j),(word_pos_y[k]+word_delta_y[k]*word_lens[k],word_pos_x[k]+word_delta_x[k]*word_lens[k]))
+)
+
+constraint forall(i in 1..m)(
+  forall(j in 1..word_lens[i])(
+    words[i,j] = board[word_pos_y[i] + word_delta_y[i]*(j-1), word_pos_x[i] + word_delta_x[i]*(j-1)]
+  )
+);
+
+% If we called together all 4 constraint arrayed, could generate these re-ordings on the fly...
+% solve :: int_search(reverse(word_pos_y) ++ reverse(word_pos_x), most_constrained, indomain_min) satisfy;
+
+% solve :: int_search([word_pos_y[76], word_pos_x[76], word_pos_y[75], word_pos_x[75], word_pos_y[74], word_pos_x[74], word_pos_y[73], word_pos_x[73], word_pos_y[72], word_pos_x[72], word_pos_y[71], word_pos_x[71], word_pos_y[70], word_pos_x[70], word_pos_y[69], word_pos_x[69], word_pos_y[68], word_pos_x[68], word_pos_y[67], word_pos_x[67], word_pos_y[66], word_pos_x[66], word_pos_y[65], word_pos_x[65], word_pos_y[64], word_pos_x[64], word_pos_y[63], word_pos_x[63], word_pos_y[62], word_pos_x[62], word_pos_y[61], word_pos_x[61], word_pos_y[60], word_pos_x[60], word_pos_y[59], word_pos_x[59], word_pos_y[58], word_pos_x[58], word_pos_y[57], word_pos_x[57], word_pos_y[56], word_pos_x[56], word_pos_y[55], word_pos_x[55], word_pos_y[54], word_pos_x[54], word_pos_y[53], word_pos_x[53], word_pos_y[52], word_pos_x[52], word_pos_y[51], word_pos_x[51], word_pos_y[50], word_pos_x[50], word_pos_y[49], word_pos_x[49], word_pos_y[48], word_pos_x[48], word_pos_y[47], word_pos_x[47], word_pos_y[46], word_pos_x[46], word_pos_y[45], word_pos_x[45], word_pos_y[44], word_pos_x[44], word_pos_y[43], word_pos_x[43], word_pos_y[42], word_pos_x[42], word_pos_y[41], word_pos_x[41], word_pos_y[40], word_pos_x[40], word_pos_y[39], word_pos_x[39], word_pos_y[38], word_pos_x[38], word_pos_y[37], word_pos_x[37], word_pos_y[36], word_pos_x[36], word_pos_y[35], word_pos_x[35], word_pos_y[34], word_pos_x[34], word_pos_y[33], word_pos_x[33], word_pos_y[32], word_pos_x[32], word_pos_y[31], word_pos_x[31], word_pos_y[30], word_pos_x[30], word_pos_y[29], word_pos_x[29], word_pos_y[28], word_pos_x[28], word_pos_y[27], word_pos_x[27], word_pos_y[26], word_pos_x[26], word_pos_y[25], word_pos_x[25], word_pos_y[24], word_pos_x[24], word_pos_y[23], word_pos_x[23], word_pos_y[22], word_pos_x[22], word_pos_y[21], word_pos_x[21], word_pos_y[20], word_pos_x[20], word_pos_y[19], word_pos_x[19], word_pos_y[18], word_pos_x[18], word_pos_y[17], word_pos_x[17], word_pos_y[16], word_pos_x[16], word_pos_y[15], word_pos_x[15], word_pos_y[14], word_pos_x[14], word_pos_y[13], word_pos_x[13], word_pos_y[12], word_pos_x[12], word_pos_y[11], word_pos_x[11], word_pos_y[10], word_pos_x[10], word_pos_y[9], word_pos_x[9], word_pos_y[8], word_pos_x[8], word_pos_y[7], word_pos_x[7], word_pos_y[6], word_pos_x[6], word_pos_y[5], word_pos_x[5], word_pos_y[4], word_pos_x[4], word_pos_y[3], word_pos_x[3], word_pos_y[2], word_pos_x[2], word_pos_y[1], word_pos_x[1]], input_order, indomain_min) satisfy;
+
 solve :: seq_search([
+          int_search([word_pos_y[76], word_pos_x[76]], smallest, indomain_min),
+          int_search([word_delta_y[76], word_delta_x[76]], first_fail, indomain_median),
+          int_search([word_pos_y[75], word_pos_x[75]], smallest, indomain_min),
+          int_search([word_delta_y[75], word_delta_x[75]], first_fail, indomain_median),
+          int_search([word_pos_y[74], word_pos_x[74]], smallest, indomain_min),
+          int_search([word_delta_y[74], word_delta_x[74]], first_fail, indomain_median),
+          int_search([word_pos_y[73], word_pos_x[73]], smallest, indomain_min),
+          int_search([word_delta_y[73], word_delta_x[73]], first_fail, indomain_median),
+          int_search([word_pos_y[72], word_pos_x[72]], smallest, indomain_min),
+          int_search([word_delta_y[72], word_delta_x[72]], first_fail, indomain_median),
+          int_search([word_pos_y[71], word_pos_x[71]], smallest, indomain_min),
+          int_search([word_delta_y[71], word_delta_x[71]], first_fail, indomain_median),
+          int_search([word_pos_y[70], word_pos_x[70]], smallest, indomain_min),
+          int_search([word_delta_y[70], word_delta_x[70]], first_fail, indomain_median),
+          int_search([word_pos_y[69], word_pos_x[69]], smallest, indomain_min),
+          int_search([word_delta_y[69], word_delta_x[69]], first_fail, indomain_median),
 	int_search([word_pos_y[68], word_pos_x[68]], smallest, indomain_min),
 	int_search([word_delta_y[68], word_delta_x[68]], first_fail, indomain_median),
 	int_search([word_pos_y[67], word_pos_x[67]], smallest, indomain_min),
@@ -275,149 +301,6 @@ solve :: seq_search([
 	int_search([word_delta_y[1], word_delta_x[1]], first_fail, indomain_median)
 	])
       satisfy;
-      
-% Do a round-robin along the edges:
-% Min x --> Min y --> Max x --> Max y
-% Min pos_x --> Median delta_x --> Min pos_y --> Median delta_y --> Max x --> Median delta_x --> Max y --> Median delta_y
-% solve :: seq_search([
-% 	int_search([word_pos_x[68]], first_fail, indomain_min),
-% 	int_search([word_delta_x[68]], first_fail, indomain_median),
-% 	int_search([word_pos_y[67]], first_fail, indomain_max),
-% 	int_search([word_delta_y[67]], first_fail, indomain_median),
-% 	int_search([word_pos_x[66]], first_fail, indomain_max),
-% 	int_search([word_delta_x[66]], first_fail, indomain_median),
-% 	int_search([word_pos_y[65]], first_fail, indomain_min),
-% 	int_search([word_delta_y[65]], first_fail, indomain_median),
-% 	int_search([word_pos_x[64]], first_fail, indomain_min),
-% 	int_search([word_delta_x[64]], first_fail, indomain_median),
-% 	int_search([word_pos_y[63]], first_fail, indomain_max),
-% 	int_search([word_delta_y[63]], first_fail, indomain_median),
-% 	int_search([word_pos_x[62]], first_fail, indomain_max),
-% 	int_search([word_delta_x[62]], first_fail, indomain_median),
-% 	int_search([word_pos_y[61]], first_fail, indomain_min),
-% 	int_search([word_delta_y[61]], first_fail, indomain_median),
-% 	int_search([word_pos_x[60]], first_fail, indomain_min),
-% 	int_search([word_delta_x[60]], first_fail, indomain_median),
-% 	int_search([word_pos_y[59]], first_fail, indomain_max),
-% 	int_search([word_delta_y[59]], first_fail, indomain_median),
-% 	int_search([word_pos_x[58]], first_fail, indomain_max),
-% 	int_search([word_delta_x[58]], first_fail, indomain_median),
-% 	int_search([word_pos_y[57]], first_fail, indomain_min),
-% 	int_search([word_delta_y[57]], first_fail, indomain_median),
-% 	int_search([word_pos_x[56]], first_fail, indomain_min),
-% 	int_search([word_delta_x[56]], first_fail, indomain_median),
-% 	int_search([word_pos_y[55]], first_fail, indomain_max),
-% 	int_search([word_delta_y[55]], first_fail, indomain_median),
-% 	int_search([word_pos_x[54]], first_fail, indomain_max),
-% 	int_search([word_delta_x[54]], first_fail, indomain_median),
-% 	int_search([word_pos_y[53]], first_fail, indomain_min),
-% 	int_search([word_delta_y[53]], first_fail, indomain_median),
-% 	int_search([word_pos_x[52]], first_fail, indomain_min),
-% 	int_search([word_delta_x[52]], first_fail, indomain_median),
-% 	int_search([word_pos_y[51]], first_fail, indomain_max),
-% 	int_search([word_delta_y[51]], first_fail, indomain_median),
-% 	int_search([word_pos_x[50]], first_fail, indomain_max),
-% 	int_search([word_delta_x[50]], first_fail, indomain_median),
-% 	int_search([word_pos_y[49]], first_fail, indomain_min),
-% 	int_search([word_delta_y[49]], first_fail, indomain_median),
-% 	int_search([word_pos_x[48]], first_fail, indomain_min),
-% 	int_search([word_delta_x[48]], first_fail, indomain_median),
-% 	int_search([word_pos_y[47]], first_fail, indomain_max),
-% 	int_search([word_delta_y[47]], first_fail, indomain_median),
-% 	int_search([word_pos_x[46]], first_fail, indomain_max),
-% 	int_search([word_delta_x[46]], first_fail, indomain_median),
-% 	int_search([word_pos_y[45]], first_fail, indomain_min),
-% 	int_search([word_delta_y[45]], first_fail, indomain_median),
-% 	int_search([word_pos_x[44]], first_fail, indomain_min),
-% 	int_search([word_delta_x[44]], first_fail, indomain_median),
-% 	int_search([word_pos_y[43]], first_fail, indomain_max),
-% 	int_search([word_delta_y[43]], first_fail, indomain_median),
-% 	int_search([word_pos_x[42]], first_fail, indomain_max),
-% 	int_search([word_delta_x[42]], first_fail, indomain_median),
-% 	int_search([word_pos_y[41]], first_fail, indomain_min),
-% 	int_search([word_delta_y[41]], first_fail, indomain_median),
-% 	int_search([word_pos_x[40]], first_fail, indomain_min),
-% 	int_search([word_delta_x[40]], first_fail, indomain_median),
-% 	int_search([word_pos_y[39]], first_fail, indomain_max),
-% 	int_search([word_delta_y[39]], first_fail, indomain_median),
-% 	int_search([word_pos_x[38]], first_fail, indomain_max),
-% 	int_search([word_delta_x[38]], first_fail, indomain_median),
-% 	int_search([word_pos_y[37]], first_fail, indomain_min),
-% 	int_search([word_delta_y[37]], first_fail, indomain_median),
-% 	int_search([word_pos_x[36]], first_fail, indomain_min),
-% 	int_search([word_delta_x[36]], first_fail, indomain_median),
-% 	int_search([word_pos_y[35]], first_fail, indomain_max),
-% 	int_search([word_delta_y[35]], first_fail, indomain_median),
-% 	int_search([word_pos_x[34]], first_fail, indomain_max),
-% 	int_search([word_delta_x[34]], first_fail, indomain_median),
-% 	int_search([word_pos_y[33]], first_fail, indomain_min),
-% 	int_search([word_delta_y[33]], first_fail, indomain_median),
-% 	int_search([word_pos_x[32]], first_fail, indomain_min),
-% 	int_search([word_delta_x[32]], first_fail, indomain_median),
-% 	int_search([word_pos_y[31]], first_fail, indomain_max),
-% 	int_search([word_delta_y[31]], first_fail, indomain_median),
-% 	int_search([word_pos_x[30]], first_fail, indomain_max),
-% 	int_search([word_delta_x[30]], first_fail, indomain_median),
-% 	int_search([word_pos_y[29]], first_fail, indomain_min),
-% 	int_search([word_delta_y[29]], first_fail, indomain_median),
-% 	int_search([word_pos_x[28]], first_fail, indomain_min),
-% 	int_search([word_delta_x[28]], first_fail, indomain_median),
-% 	int_search([word_pos_y[27]], first_fail, indomain_max),
-% 	int_search([word_delta_y[27]], first_fail, indomain_median),
-% 	int_search([word_pos_x[26]], first_fail, indomain_max),
-% 	int_search([word_delta_x[26]], first_fail, indomain_median),
-% 	int_search([word_pos_y[25]], first_fail, indomain_min),
-% 	int_search([word_delta_y[25]], first_fail, indomain_median),
-% 	int_search([word_pos_x[24]], first_fail, indomain_min),
-% 	int_search([word_delta_x[24]], first_fail, indomain_median),
-% 	int_search([word_pos_y[23]], first_fail, indomain_max),
-% 	int_search([word_delta_y[23]], first_fail, indomain_median),
-% 	int_search([word_pos_x[22]], first_fail, indomain_max),
-% 	int_search([word_delta_x[22]], first_fail, indomain_median),
-% 	int_search([word_pos_y[21]], first_fail, indomain_min),
-% 	int_search([word_delta_y[21]], first_fail, indomain_median),
-% 	int_search([word_pos_x[20]], first_fail, indomain_min),
-% 	int_search([word_delta_x[20]], first_fail, indomain_median),
-% 	int_search([word_pos_y[19]], first_fail, indomain_max),
-% 	int_search([word_delta_y[19]], first_fail, indomain_median),
-% 	int_search([word_pos_x[18]], first_fail, indomain_max),
-% 	int_search([word_delta_x[18]], first_fail, indomain_median),
-% 	int_search([word_pos_y[17]], first_fail, indomain_min),
-% 	int_search([word_delta_y[17]], first_fail, indomain_median),
-% 	int_search([word_pos_x[16]], first_fail, indomain_min),
-% 	int_search([word_delta_x[16]], first_fail, indomain_median),
-% 	int_search([word_pos_y[15]], first_fail, indomain_max),
-% 	int_search([word_delta_y[15]], first_fail, indomain_median),
-% 	int_search([word_pos_x[14]], first_fail, indomain_max),
-% 	int_search([word_delta_x[14]], first_fail, indomain_median),
-% 	int_search([word_pos_y[13]], first_fail, indomain_min),
-% 	int_search([word_delta_y[13]], first_fail, indomain_median),
-% 	int_search([word_pos_x[12]], first_fail, indomain_min),
-% 	int_search([word_delta_x[12]], first_fail, indomain_median),
-% 	int_search([word_pos_y[11]], first_fail, indomain_max),
-% 	int_search([word_delta_y[11]], first_fail, indomain_median),
-% 	int_search([word_pos_x[10]], first_fail, indomain_max),
-% 	int_search([word_delta_x[10]], first_fail, indomain_median),
-% 	int_search([word_pos_y[9]], first_fail, indomain_min),
-% 	int_search([word_delta_y[9]], first_fail, indomain_median),
-% 	int_search([word_pos_x[8]], first_fail, indomain_min),
-% 	int_search([word_delta_x[8]], first_fail, indomain_median),
-% 	int_search([word_pos_y[7]], first_fail, indomain_max),
-% 	int_search([word_delta_y[7]], first_fail, indomain_median),
-% 	int_search([word_pos_x[6]], first_fail, indomain_max),
-% 	int_search([word_delta_x[6]], first_fail, indomain_median),
-% 	int_search([word_pos_y[5]], first_fail, indomain_min),
-% 	int_search([word_delta_y[5]], first_fail, indomain_median),
-% 	int_search([word_pos_x[4]], first_fail, indomain_min),
-% 	int_search([word_delta_x[4]], first_fail, indomain_median),
-% 	int_search([word_pos_y[3]], first_fail, indomain_max),
-% 	int_search([word_delta_y[3]], first_fail, indomain_median),
-% 	int_search([word_pos_x[2]], first_fail, indomain_max),
-% 	int_search([word_delta_x[2]], first_fail, indomain_median),
-% 	int_search([word_pos_y[1]], first_fail, indomain_min),
-% 	int_search([word_delta_y[1]], first_fail, indomain_median),
-% 	])
-%       satisfy;
 
 % Remove symmetry constraint: It's not a real requirement, and just slows down the solver.
 
