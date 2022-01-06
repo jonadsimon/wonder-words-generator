@@ -45,6 +45,17 @@ constraint forall(i in 1..m)(
   )
 );
 
+% Count square coverings
+function var int: num_square_coverings(int: i, int: j) = 
+  sum(k in 1..m)(
+    sum(l in 1..word_lens[k])(
+      (i == word_pos_y[k] + word_delta_y[k]*(l-1)) /\ (j == word_pos_x[k] + word_delta_x[k]*(l-1))
+  )
+);
+
+% Consider giving the constraint as an overall sum instead; this allows zeros to be factored in
+constraint count([num_square_coverings(i,j) > 1 | i,j in 1..n]) >= 0.15 * pow(n,2);
+
 % Search the variables in order of decreasing word length (words are passed in as shortest-to-longest).
 % For each word first search the positions in min-to-max order (intuition: start from the left/top of the board then work your way in).
 % Then search the orientations in horizontal-to-diagonalmax order (intuition: diagonal words interfere with more other words)

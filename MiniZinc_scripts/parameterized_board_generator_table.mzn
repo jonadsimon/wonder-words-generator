@@ -1,4 +1,8 @@
+include "table.mzn";
+
 enum Letter = { E, R, O, A, T, L, I, S, N, M, G, C, P, D, H, W, U, K, V, F, B, Y, X, J, Z, Q }; % english letters in reverse frequency order
+
+% array [1..8,1..2] of int: dirs = [| 1, 0 | 0, 1 | -1, 0 | 0, -1 | 1, 1 | -1, 1 | -1, -1 | 1, -1 |]; % 8 allowed word orientations
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Variables whose values need to be passed in %%%
@@ -17,16 +21,18 @@ array [1..m,1..max_len] of Letter: words; % array whose rows are words, with exc
 
 array [1..n,1..n] of var Letter: board;
 
-array [1..m] of var int: word_pos_y; % values constrained by board size
-array [1..m] of var int: word_pos_x; % values constrained by board size
-array [1..m] of var int: word_delta_y; % values constrained by {-1,0,1}
-array [1..m] of var int: word_delta_x; % values constrained by {-1,0,1}
+array [1..m] of var 1..n: word_pos_y; % values constrained by board size
+array [1..m] of var 1..n: word_pos_x; % values constrained by board size
+array [1..m] of var -1..1: word_delta_y; % values constrained by {-1,0,1}
+array [1..m] of var -1..1: word_delta_x; % values constrained by {-1,0,1}
 
-constraint forall(i in 1..m)(word_pos_y[i] >= 1 /\ word_pos_y[i] <= n); % y positions lie within [1..n]
-constraint forall(i in 1..m)(word_pos_x[i] >= 1 /\ word_pos_x[i] <= n); % x positions lie within [1..n]
-constraint forall(i in 1..m)(word_delta_y[i] >= -1 /\ word_delta_y[i] <= 1); % dy values are one of {-1, 0, 1}
-constraint forall(i in 1..m)(word_delta_x[i] >= -1 /\ word_delta_x[i] <= 1); % dx values are one of {-1, 0, 1}
+% constraint forall(i in 1..m)(word_pos_y[i] >= 1 /\ word_pos_y[i] <= n); % y positions lie within [1..n]
+% constraint forall(i in 1..m)(word_pos_x[i] >= 1 /\ word_pos_x[i] <= n); % x positions lie within [1..n]
+% constraint forall(i in 1..m)(word_delta_y[i] >= -1 /\ word_delta_y[i] <= 1); % dy values are one of {-1, 0, 1}
+% constraint forall(i in 1..m)(word_delta_x[i] >= -1 /\ word_delta_x[i] <= 1); % dx values are one of {-1, 0, 1}
 constraint forall(i in 1..m)(word_delta_y[i] != 0 \/ word_delta_x[i] != 0); % at least one of dy,dx must be nonzero
+
+% constraint forall(i in 1..m)(table([word_delta_y[i],word_delta_x[i]], dirs));
 
 
 % For each word, enforce that its last letter lies within the board.

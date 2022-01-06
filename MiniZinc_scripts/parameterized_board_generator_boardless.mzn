@@ -15,8 +15,6 @@ array [1..m,1..max_len] of Letter: words; % array whose rows are words, with exc
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-array [1..n,1..n] of var Letter: board;
-
 array [1..m] of var int: word_pos_y; % values constrained by board size
 array [1..m] of var int: word_pos_x; % values constrained by board size
 array [1..m] of var int: word_delta_y; % values constrained by {-1,0,1}
@@ -38,10 +36,14 @@ constraint forall(i in 1..m)(
   /\ word_pos_x[i]+word_delta_x[i]*word_lens[i] <= n
 );
 
-% Link the words to the board by linking letters to board positions.
-constraint forall(i in 1..m)(
-  forall(j in 1..word_lens[i])(
-    words[i,j] = board[word_pos_y[i] + word_delta_y[i]*(j-1), word_pos_x[i] + word_delta_x[i]*(j-1)]
+% Phrase constraint as an implication : if the letters in two words overlap, then the letters must match
+constraint forall(i1 in 1..m)(
+  forall(i2 in (i1+1)..m)(
+    forall(j1 in 1..word_lens[i1])(
+      forall(j2 in 1..word_lens[i2])(
+        ((word_pos_y[i1] + word_delta_y[i1]*(j1-1) == word_pos_y[i2] + word_delta_y[i2]*(j2-1)) /\ (word_pos_x[i1] + word_delta_x[i1]*(j1-1) == word_pos_x[i2] + word_delta_x[i2]*(j2-1))) -> (words[i1,j1] == words[i2,j2])
+      )
+    )
   )
 );
 
@@ -52,6 +54,7 @@ constraint forall(i in 1..m)(
 % Define position searches and orientation searches separately, then interleave them in reverse order.
 % pos_searches = [int_search([word_pos_y[i], word_pos_x[i]], smallest, indomain_min) | i in i..m];
 % delta_searches =  [int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)  | i in i..m];
+
 solve :: seq_search([
   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], smallest, indomain_min)
   else int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)
@@ -59,13 +62,13 @@ solve :: seq_search([
       satisfy;
 
 
-% Function which outputs, for a given board position, whether there is a word which overlaps that position
-function bool: square_is_covered(int: i, int: j) = 
-  exists(k in 1..m)(
-    exists(l in 1..word_lens[k])(
-      (i == fix(word_pos_y[k]) + fix(word_delta_y[k])*(l-1)) /\ (j == fix(word_pos_x[k]) + fix(word_delta_x[k])*(l-1))
-  )
-);
+% % Function which outputs, for a given board position, whether there is a word which overlaps that position
+% function bool: square_is_covered(int: i, int: j) = 
+%   exists(k in 1..m)(
+%     exists(l in 1..word_lens[k])(
+%       (i == fix(word_pos_y[k]) + fix(word_delta_y[k])*(l-1)) /\ (j == fix(word_pos_x[k]) + fix(word_delta_x[k])*(l-1))
+%   )
+% );
 
-output [ if square_is_covered(i,j) then format(fix(board[i,j])) else "_" endif ++
-if j == n then "\n" else " " endif | i,j in 1..n ] ++ ["\n"];
+% output [ if square_is_covered(i,j) then format(fix(board[i,j])) else "_" endif ++
+% if j == n then "\n" else " " endif | i,j in 1..n ] ++ ["\n"];

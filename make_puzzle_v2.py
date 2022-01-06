@@ -39,12 +39,15 @@ def make_puzzle(topic, board_size=20):
     words_to_fit = get_words_for_board(words, board_size, 1.10)
     board_words = [word.replace(" ", "").replace("-", "").upper() for word in words_to_fit]
 
+    print(words_to_fit)
+    print(hidden_word_dict)
+
     # Generate Minizinc data file to feed into the parameterizd script.
     make_data_file(board_words, board_size)
 
     # Run the script
     raw_board = subprocess.Popen("/Applications/MiniZincIDE.app/Contents/Resources/minizinc --solver Chuffed MiniZinc_scripts/parameterized_board_generator.mzn tmp/data.dzn", shell=True, stdout=subprocess.PIPE).stdout.read()
-    # raw_board = subprocess.call("minizinc MiniZinc_scripts/parameterized_board_generator.mzn tmp/data.dzn", shell=True)
+
     board = [line.strip().split() for line in raw_board.decode("utf-8").strip().split("\n")]
     blank_locs = [(i,j) for i,row in enumerate(board) for j,letter in enumerate(row) if letter == "_"]
     if len(blank_locs) not in hidden_word_dict:
@@ -57,7 +60,7 @@ def make_puzzle(topic, board_size=20):
         k += 1
     for row in board:
         print(" ".join(row))
-    print("\n", "   ".join(sorted(words)))
+    print("\n", "   ".join(sorted(words_to_fit)))
 
 if __name__ == "__main__":
-    make_puzzle("calendar", 16)
+    make_puzzle("flamboyant", 15)
