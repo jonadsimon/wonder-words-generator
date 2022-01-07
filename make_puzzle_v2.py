@@ -4,6 +4,8 @@ import numpy as np
 import random
 from collections import Counter
 
+from copy import deepcopy
+import time
 import subprocess
 
 def get_words_for_board(word_tuples, board_size, packing_constant=1.1):
@@ -34,9 +36,24 @@ def make_data_file(board_words, board_size):
         # ADDING THE BUFFER LIKE THIS IS HACKY, MAKE IT CLEANER
         outfile.write(f"words = [| {' | '.join([', '.join(word + 'E'*(len(board_words[-1])-len(word))) for word in board_words])} |];\n")
 
-def make_puzzle(topic, board_size=20):
+def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
+    # things have become very wordy... reduce the verbosity
+    new_hidden_word_tuple_dict = {}
+    new_word_tuples_to_fit = deepcopy(word_tuples_to_fit)
+    for num_letters, hidden_word_tuple in hidden_word_tuple_dict.items():
+        new_hidden_word_tuples = [wt for wt in word_tuples_to_fit if len(wt.board) == num_letters]
+        new_hidden_word_tuple = random.sample(new_hidden_word_tuples + [hidden_word_tuple], 1)[0]
+        new_hidden_word_tuple_dict.update({num_letters: new_hidden_word_tuple})
+        # print("old hidden_word_tuple: ", hidden_word_tuple)
+        # print("new hidden_word_tuple: ", new_hidden_word_tuple)
+        # print("old hidden_word_tuple in word_tuples_to_fit: ", hidden_word_tuple in word_tuples_to_fit)
+        # print("new hidden_word_tuple in word_tuples_to_fit: ", new_hidden_word_tuple in word_tuples_to_fit)
+        new_word_tuples_to_fit = [wt if wt != new_hidden_word_tuple else hidden_word_tuple for wt in new_word_tuples_to_fit]
+    return new_word_tuples_to_fit, new_hidden_word_tuple_dict
+
+def make_puzzle(topic, board_size=20, packing_constant=1.10):
     word_tuples, hidden_word_tuple_dict = get_related_words(topic)
-    word_tuples_to_fit = get_words_for_board(word_tuples, board_size, 1.0)
+    word_tuples_to_fit = get_words_for_board(word_tuples, board_size, packing_constant)
     # words, hidden_word_dict = get_related_words(topic)
     # words_to_fit = get_words_for_board(words, board_size, 1.10)
     # board_words = [word.replace(" ", "").replace("-", "").upper() for word in words_to_fit]
@@ -44,11 +61,41 @@ def make_puzzle(topic, board_size=20):
     print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n")
     print({l: wt.pretty for l,wt in hidden_word_tuple_dict.items()}, "\n")
 
-    # Generate Minizinc data file to feed into the parameterizd script.
-    make_data_file([wt.board for wt in word_tuples_to_fit], board_size)
+    # # Generate Minizinc data file to feed into the parameterizd script.
+    # make_data_file([wt.board for wt in word_tuples_to_fit], board_size)
+    #
+    # # Run the script
+    # raw_board = subprocess.Popen("/Applications/MiniZincIDE.app/Contents/Resources/minizinc --solver Chuffed MiniZinc_scripts/parameterized_board_generator.mzn tmp/data.dzn", shell=True, stdout=subprocess.PIPE).stdout.read()
 
-    # Run the script
-    raw_board = subprocess.Popen("/Applications/MiniZincIDE.app/Contents/Resources/minizinc --solver Chuffed MiniZinc_scripts/parameterized_board_generator.mzn tmp/data.dzn", shell=True, stdout=subprocess.PIPE).stdout.read()
+    board_found = False
+    max_retries = 5
+    retries = 0
+    timeout = 5
+    while retries < max_retries and not board_found:
+
+        # Generate Minizinc data file to feed into the parameterizd script.
+        make_data_file([wt.board for wt in word_tuples_to_fit], board_size)
+
+        # Run the script
+        p = subprocess.Popen(["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator.mzn", "tmp/data.dzn"], stdout=subprocess.PIPE)
+        time.sleep(timeout)
+        if p.poll() is None:
+            # process is still running, so kill it, increment retries, shuffle the words, and continue
+            p.terminate()
+            retries += 1
+            word_tuples_to_fit, hidden_word_tuple_dict = reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict)
+
+            print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n")
+            print({l: wt.pretty for l,wt in hidden_word_tuple_dict.items()}, "\n")
+
+            continue
+
+        raw_board = p.stdout.read()
+
+        board_found = True
+
+    if not board_found:
+        raise ValueError(f"MiniZinc couldn't find a board after {max_retries} retries")
 
     board = [line.strip().split() for line in raw_board.decode("utf-8").strip().split("\n")]
     blank_locs = [(i,j) for i,row in enumerate(board) for j,letter in enumerate(row) if letter == "_"]
@@ -65,4 +112,5 @@ def make_puzzle(topic, board_size=20):
     print("\n", "   ".join(sorted([wt.pretty for wt in word_tuples_to_fit])))
 
 if __name__ == "__main__":
-    make_puzzle("dreaming", 15)
+    # make_puzzle("flamboyant", 15, 1.0)
+    make_puzzle("coffee", 15, 1.10)
