@@ -8,6 +8,8 @@ from copy import deepcopy
 import time
 import subprocess
 
+import argparse
+
 def get_words_for_board(word_tuples, board_size, packing_constant=1.1):
     """Pick a cutoff which is just beyond limit of the board size."""
     # Order the words by length. It's easier to pack shorter words, so prioritize them.
@@ -44,10 +46,6 @@ def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
         new_hidden_word_tuples = [wt for wt in word_tuples_to_fit if len(wt.board) == num_letters]
         new_hidden_word_tuple = random.sample(new_hidden_word_tuples + [hidden_word_tuple], 1)[0]
         new_hidden_word_tuple_dict.update({num_letters: new_hidden_word_tuple})
-        # print("old hidden_word_tuple: ", hidden_word_tuple)
-        # print("new hidden_word_tuple: ", new_hidden_word_tuple)
-        # print("old hidden_word_tuple in word_tuples_to_fit: ", hidden_word_tuple in word_tuples_to_fit)
-        # print("new hidden_word_tuple in word_tuples_to_fit: ", new_hidden_word_tuple in word_tuples_to_fit)
         new_word_tuples_to_fit = [wt if wt != new_hidden_word_tuple else hidden_word_tuple for wt in new_word_tuples_to_fit]
     return new_word_tuples_to_fit, new_hidden_word_tuple_dict
 
@@ -58,7 +56,7 @@ def make_puzzle(topic, board_size=20, packing_constant=1.10):
     # words_to_fit = get_words_for_board(words, board_size, 1.10)
     # board_words = [word.replace(" ", "").replace("-", "").upper() for word in words_to_fit]
 
-    print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n")
+    print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n", sep="")
     print({l: wt.pretty for l,wt in hidden_word_tuple_dict.items()}, "\n")
 
     # # Generate Minizinc data file to feed into the parameterizd script.
@@ -85,12 +83,13 @@ def make_puzzle(topic, board_size=20, packing_constant=1.10):
             retries += 1
             word_tuples_to_fit, hidden_word_tuple_dict = reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict)
 
-            print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n")
+            print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n", sep="")
             print({l: wt.pretty for l,wt in hidden_word_tuple_dict.items()}, "\n")
 
             continue
 
         raw_board = p.stdout.read()
+        raw_board = raw_board.split(b"\n\n")[0] # remove the trailing non-board characters
 
         board_found = True
 
@@ -99,7 +98,8 @@ def make_puzzle(topic, board_size=20, packing_constant=1.10):
 
     board = [line.strip().split() for line in raw_board.decode("utf-8").strip().split("\n")]
     blank_locs = [(i,j) for i,row in enumerate(board) for j,letter in enumerate(row) if letter == "_"]
-    if len(blank_locs) not in hidden_word_tuple_dict:
+    # If number of blanks is exactly 0, no special word is needed
+    if len(blank_locs) not in hidden_word_tuple_dict and len(blank_locs) != 0:
         print(len(blank_locs), blank_locs)
         print(hidden_word_tuple_dict)
         raise ValueError("Number of remaining blanks does not fit any available word.")
@@ -107,10 +107,23 @@ def make_puzzle(topic, board_size=20, packing_constant=1.10):
     for i, j in blank_locs:
         board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
         k += 1
+    # Print the topic above the board
+    print(f"Topic: {topic}\n\n")
     for row in board:
         print(" ".join(row))
-    print("\n", "   ".join(sorted([wt.pretty for wt in word_tuples_to_fit])))
+    print("\n\n", "   ".join(sorted([wt.pretty for wt in word_tuples_to_fit])), sep="")
 
 if __name__ == "__main__":
-    # make_puzzle("flamboyant", 15, 1.0)
-    make_puzzle("coffee", 15, 1.10)
+    # Parse the arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('topic', type=str,
+                        help='Topic for the words')
+    parser.add_argument('--board_size', type=int, default=15,
+                        help='Size of the board to fill (default=15)')
+    parser.add_argument('--packing_constant', type=float, default=1.10,
+                        help='Ratio of total letters to # board squares (default=1.10)')
+    args = parser.parse_args()
+
+    # make_puzzle("flamboyant", 15, 1.05)
+    # make_puzzle("coffee", 15, 1.10)
+    make_puzzle(args.topic, args.board_size, args.packing_constant)

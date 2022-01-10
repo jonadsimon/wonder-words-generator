@@ -54,6 +54,8 @@ constraint forall(i in 1..m)(
 % delta_searches =  [int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)  | i in i..m];
 solve :: seq_search([
   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], smallest, indomain_min)
+%   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], largest, indomain_max)
+%   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], first_fail, indomain_median)
   else int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)
   endif | i in reverse(1..m), x in 1..2])
       satisfy;
