@@ -17,15 +17,12 @@ array [1..m,1..max_len] of Letter: words; % array whose rows are words, with exc
 
 array [1..n,1..n] of var Letter: board;
 
-array [1..m] of var int: word_pos_y; % values constrained by board size
-array [1..m] of var int: word_pos_x; % values constrained by board size
-array [1..m] of var int: word_delta_y; % values constrained by {-1,0,1}
-array [1..m] of var int: word_delta_x; % values constrained by {-1,0,1}
+array [1..m] of var 1..n: word_pos_y; % values constrained by board size
+array [1..m] of var 1..n: word_pos_x; % values constrained by board size
+array [1..m] of var -1..1: word_delta_y; % values constrained by {-1,0,1}
+array [1..m] of var -1..1: word_delta_x; % values constrained by {-1,0,1}
 
-constraint forall(i in 1..m)(word_pos_y[i] >= 1 /\ word_pos_y[i] <= n); % y positions lie within [1..n]
-constraint forall(i in 1..m)(word_pos_x[i] >= 1 /\ word_pos_x[i] <= n); % x positions lie within [1..n]
-constraint forall(i in 1..m)(word_delta_y[i] >= -1 /\ word_delta_y[i] <= 1); % dy values are one of {-1, 0, 1}
-constraint forall(i in 1..m)(word_delta_x[i] >= -1 /\ word_delta_x[i] <= 1); % dx values are one of {-1, 0, 1}
+
 constraint forall(i in 1..m)(word_delta_y[i] != 0 \/ word_delta_x[i] != 0); % at least one of dy,dx must be nonzero
 
 
@@ -39,6 +36,7 @@ constraint forall(i in 1..m)(
 );
 
 % Link the words to the board by linking letters to board positions.
+% constraint forall(i in 1..m)(
 constraint forall(i in 1..m)(
   forall(j in 1..word_lens[i])(
     words[i,j] = board[word_pos_y[i] + word_delta_y[i]*(j-1), word_pos_x[i] + word_delta_x[i]*(j-1)]
@@ -49,15 +47,17 @@ constraint forall(i in 1..m)(
 % For each word first search the positions in min-to-max order (intuition: start from the left/top of the board then work your way in).
 % Then search the orientations in horizontal-to-diagonalmax order (intuition: diagonal words interfere with more other words)
 
+annotation pos_var_strat;
+annotation pos_val_strat;
+
 % Define position searches and orientation searches separately, then interleave them in reverse order.
 % pos_searches = [int_search([word_pos_y[i], word_pos_x[i]], smallest, indomain_min) | i in i..m];
 % delta_searches =  [int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)  | i in i..m];
 solve :: seq_search([
-  if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], smallest, indomain_min)
-%   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], largest, indomain_max)
-%   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], first_fail, indomain_median)
+  if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], pos_var_strat, pos_val_strat)
   else int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)
   endif | i in reverse(1..m), x in 1..2])
+  % ADD AN ALTERNATE ITERATION SCHEME THAT GOES m, 1, m-1, 2, ...
       satisfy;
 
 

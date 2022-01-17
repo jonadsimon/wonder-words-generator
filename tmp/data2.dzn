@@ -1,0 +1,6 @@
+n = 15;
+m = 48;
+
+max_len = 6;
+word_lens = [ 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6 ];
+words = [| S, E, A, T, E, E | C, A, S, T, E, E | R, O, O, M, E, E | B, U, N, K, E, E | W, O, R, D, E, E | D, O, R, M, E, E | K, I, D, S, E, E | T, E, N, T, E, E | B, A, R, E, E, E | D, O, O, R, E, E | P, A, C, K, E, E | D, I, V, A, N, E | C, H, A, I, R, E | P, O, R, C, H, E | B, E, N, C, H, E | F, R, A, M, E, E | C, O, M, F, Y, E | S, T, O, O, L, E | F, U, T, O, N, E | S, Q, U, A, B, E | L, O, B, B, Y, E | S, L, E, P, T, E | T, O, W, E, L, E | F, I, L, L, S, E | S, T, U, F, F, E | L, U, N, C, H, E | S, T, U, C, K, E | W, A, K, E, S, E | E, M, P, T, Y, E | F, L, O, O, R, E | L, O, O, S, E, E | S, O, C, K, S, E | M, I, T, T, S, E | W, E, A, R, S, E | D, A, Y, B, E, D | S, E, T, T, E, E | P, I, L, L, O, W | R, E, D, A, C, T | C, L, O, S, E, T | P, R, I, M, E, R | G, R, O, U, N, D | P, H, R, A, S, E | S, P, R, I, N, G | G, R, E, E, C, E | S, L, E, E, P, S | L, O, C, K, E, R | H, O, W, D, A, H | H, U, D, D, L, E |];

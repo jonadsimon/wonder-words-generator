@@ -27,8 +27,9 @@ def get_words_for_board(word_tuples, board_size, packing_constant=1.1):
     if not num_words:
         raise ValueError(f"Too few semantic neighbor words to pack a {board_size}x{board_size} board.")
     return word_tuples[:num_words]
+    # return sorted(word_tuples[:num_words], key=lambda wt: len(wt.board))
 
-def make_data_file(board_words, board_size):
+def make_data_file(board_words, board_size, strategy):
     """Generated a temporary data.dzn file to pass to the minizinc script."""
     with open("tmp/data.dzn", "w") as outfile:
         outfile.write(f"n = {board_size};\n")
@@ -36,7 +37,21 @@ def make_data_file(board_words, board_size):
         outfile.write(f"max_len = {max([len(word) for word in board_words])};\n")
         outfile.write(f"word_lens = [ {', '.join([str(len(word)) for word in board_words])} ];\n")
         # ADDING THE BUFFER LIKE THIS IS HACKY, MAKE IT CLEANER
-        outfile.write(f"words = [| {' | '.join([', '.join(word + 'E'*(len(board_words[-1])-len(word))) for word in board_words])} |];\n")
+        outfile.write(f"words = [| {' | '.join([', '.join(word + 'E'*(len(board_words[-1])-len(word))) for word in board_words])} |];\n\n")
+        # Add the search strategy conditional on the input strategy
+        if strategy == "min":
+            pos_var_strat = "smallest"
+            pos_val_strat = "indomain_min"
+        elif strategy == "median":
+            pos_var_strat = "first_fail"
+            pos_val_strat = "indomain_median"
+        elif strategy == "max":
+            pos_var_strat = "largest"
+            pos_val_strat = "indomain_max"
+        else:
+            raise ValueError(f"Search strategy must be one of 'min', 'median', 'max'. Received value: 'f{strategy}'")
+        outfile.write(f"pos_var_strat = {pos_var_strat};\n")
+        outfile.write(f"pos_val_strat = {pos_val_strat};\n")
 
 def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
     # things have become very wordy... reduce the verbosity
@@ -49,7 +64,7 @@ def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
         new_word_tuples_to_fit = [wt if wt != new_hidden_word_tuple else hidden_word_tuple for wt in new_word_tuples_to_fit]
     return new_word_tuples_to_fit, new_hidden_word_tuple_dict
 
-def make_puzzle(topic, board_size=20, packing_constant=1.10):
+def make_puzzle(topic, board_size, packing_constant, strategy):
     word_tuples, hidden_word_tuple_dict = get_related_words(topic)
     word_tuples_to_fit = get_words_for_board(word_tuples, board_size, packing_constant)
     # words, hidden_word_dict = get_related_words(topic)
@@ -66,13 +81,13 @@ def make_puzzle(topic, board_size=20, packing_constant=1.10):
     # raw_board = subprocess.Popen("/Applications/MiniZincIDE.app/Contents/Resources/minizinc --solver Chuffed MiniZinc_scripts/parameterized_board_generator.mzn tmp/data.dzn", shell=True, stdout=subprocess.PIPE).stdout.read()
 
     board_found = False
-    max_retries = 5
+    max_retries = 10
     retries = 0
-    timeout = 5
+    timeout = 10
     while retries < max_retries and not board_found:
 
         # Generate Minizinc data file to feed into the parameterizd script.
-        make_data_file([wt.board for wt in word_tuples_to_fit], board_size)
+        make_data_file([wt.board for wt in word_tuples_to_fit], board_size, strategy)
 
         # Run the script
         p = subprocess.Popen(["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator.mzn", "tmp/data.dzn"], stdout=subprocess.PIPE)
@@ -108,7 +123,7 @@ def make_puzzle(topic, board_size=20, packing_constant=1.10):
         board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
         k += 1
     # Print the topic above the board
-    print(f"Topic: {topic}\n\n")
+    print(f"\nTopic: {topic}\n\n")
     for row in board:
         print(" ".join(row))
     print("\n\n", "   ".join(sorted([wt.pretty for wt in word_tuples_to_fit])), sep="")
@@ -116,14 +131,17 @@ def make_puzzle(topic, board_size=20, packing_constant=1.10):
 if __name__ == "__main__":
     # Parse the arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('topic', type=str,
-                        help='Topic for the words')
-    parser.add_argument('--board_size', type=int, default=15,
-                        help='Size of the board to fill (default=15)')
-    parser.add_argument('--packing_constant', type=float, default=1.10,
-                        help='Ratio of total letters to # board squares (default=1.10)')
+    parser.add_argument("topic", type=str,
+                        help="Topic for the words")
+    parser.add_argument("--board_size", type=int, default=15,
+                        help="Size of the board to fill (default=15)")
+    parser.add_argument("--packing_constant", type=float, default=1.10,
+                        help="Ratio of total letters to # board squares (default=1.10)")
+    parser.add_argument("--strategy", type=str, default="median",
+                        help="Search strategy to use, one of 'min', 'median', 'max' (default='median')")
     args = parser.parse_args()
 
     # make_puzzle("flamboyant", 15, 1.05)
     # make_puzzle("coffee", 15, 1.10)
-    make_puzzle(args.topic, args.board_size, args.packing_constant)
+    # make_puzzle("dishwasher", 15, 1.10) # can't find ANYTHING
+    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy)

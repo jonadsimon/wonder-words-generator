@@ -1,0 +1,4 @@
+1. Selecting words to fit
+  i. query the relatedwords.org to fetch a set of words
+  ii. trim down the word set to only the most relevant, remove near-duplicates
+  iii. sort remaining words from shortest-to-longest
