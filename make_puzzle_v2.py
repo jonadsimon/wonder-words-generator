@@ -1,4 +1,5 @@
 from semantic_neighbors import get_related_words
+import analytics_helper_functions as ahf
 
 import numpy as np
 import random
@@ -10,12 +11,68 @@ import subprocess
 
 import argparse
 
-def get_words_for_board(word_tuples, board_size, packing_constant=1.1):
+# TODO: CLEAN UP THIS MESS OF A FUNCTION
+def get_word_set_stats(words):
+    board_words = [w.board for w in words]
+
+    num_words = len(board_words)
+    letter_excess = ahf.get_num_letters_excess(board_words)
+    mean_len = ahf.get_mean_word_length(board_words)
+    total_overlaps = ahf.get_num_overlaps_total(board_words)
+
+    return num_words, letter_excess, mean_len, total_overlaps
+
+# REPLACE WITH WORD-LENGTH NORMALIZED OVERLAP MEASURES
+def enrich_word_set(chosen_word_tuples, extra_word_tuples, max_mean_word_len=5.5):
+
+    num_words, letter_excess, mean_len, total_overlaps = get_word_set_stats(chosen_word_tuples)
+    print(f"\nInitial stats: num_words={num_words}, letter_excess={letter_excess:.2f}, mean_len={mean_len:.2f}, total_overlaps={total_overlaps}")
+
+    # Rather than hard-coding a static max_mean_word_len, make it a function of what we started with
+    # max_mean_word_len = 1.1 * mean_len
+
+    while True:
+        # Find least-overlapping word in the set
+
+        per_word_overlaps = [ahf.get_num_overlaps_per_word(wt.board, [wt.board for wt in chosen_word_tuples]) for wt in chosen_word_tuples]
+        least_overlapping_word_idx = np.argmin(per_word_overlaps)
+        least_overlapping_word = chosen_word_tuples[least_overlapping_word_idx]
+
+        chosen_word_tuples = chosen_word_tuples[:least_overlapping_word_idx] + chosen_word_tuples[least_overlapping_word_idx+1:]
+        extra_word_tuples = [least_overlapping_word] + extra_word_tuples
+
+        per_word_overlaps = [ahf.get_num_overlaps_per_word(wt.board, [wt.board for wt in chosen_word_tuples]) for wt in extra_word_tuples]
+        most_overlapping_word_idx = np.argmax(per_word_overlaps)
+        most_overlapping_word = extra_word_tuples[most_overlapping_word_idx]
+
+        chosen_word_tuples = chosen_word_tuples + [most_overlapping_word]
+        extra_word_tuples = extra_word_tuples[:most_overlapping_word_idx] + extra_word_tuples[most_overlapping_word_idx+1:]
+
+        num_words, letter_excess, mean_len, total_overlaps = get_word_set_stats(chosen_word_tuples)
+        print(f"\nRemoved: '{least_overlapping_word.pretty}', Added: '{most_overlapping_word.pretty}'")
+        print(f"Enriched stats: num_words={num_words}, letter_excess={letter_excess:.2f}, mean_len={mean_len:.2f}, total_overlaps={total_overlaps}")
+
+        if least_overlapping_word == most_overlapping_word:
+            print("\nRedundant transposition --> break")
+            break
+
+        if mean_len > max_mean_word_len:
+            print("\nPassed max_mean_word_len --> break")
+            break
+
+    return chosen_word_tuples
+
+
+def get_words_for_board(word_tuples, board_size, packing_constant=1.1, max_word_len=8):
     """Pick a cutoff which is just beyond limit of the board size."""
     # Order the words by length. It's easier to pack shorter words, so prioritize them.
 
     # This is SUPER hacky, should have a Word class that handles these representational differences.
     word_tuples = sorted(word_tuples, key=lambda wt: len(wt.board))
+
+    # Discard words that are too long to fit on the board
+    # word_tuples = [wt for wt in word_tuples if len(wt.board) <= max_word_len]
+
     cum_len = np.cumsum([len(wt.board) for wt in word_tuples])
     num_words = None
     for word_idx, cum_letters in enumerate(cum_len):
@@ -26,8 +83,83 @@ def get_words_for_board(word_tuples, board_size, packing_constant=1.1):
             break
     if not num_words:
         raise ValueError(f"Too few semantic neighbor words to pack a {board_size}x{board_size} board.")
+
+    # chosen_word_tuples = enrich_word_set(word_tuples[:num_words], word_tuples[num_words:])
+    # return sorted(chosen_word_tuples, key=lambda wt: len(wt.board))
+
+    num_words, packing_level, mean_word_len, total_overlap = get_word_set_stats(word_tuples[:num_words])
+    print("\nWord stats:")
+    print(f"    num_words: {num_words}")
+    print(f"    packing_level: {packing_level:.3f}")
+    print(f"    mean_word_len: {mean_word_len:.2f}")
+    print(f"    total_overlap: {total_overlap}")
+
     return word_tuples[:num_words]
-    # return sorted(word_tuples[:num_words], key=lambda wt: len(wt.board))
+
+def get_words_for_board_optimize(word_tuples, board_size, packing_constant=1.1):
+    """Pick a cutoff which is just beyond limit of the board size."""
+    # Order the words by length. It's easier to pack shorter words, so prioritize them.
+
+    # This is SUPER hacky, should have a Word class that handles these representational differences.
+    word_tuples = sorted(word_tuples, key=lambda wt: len(wt.board))
+    pairwise_overlaps = ahf.get_overlaps_pairwise([wt.board for wt in word_tuples])
+
+    make_word_picking_data_file(pairwise_overlaps, [wt.board for wt in word_tuples], board_size, packing_constant)
+
+    max_word_tuple_idx_naive = (np.cumsum([len(wt.board) for wt in word_tuples]) < packing_constant * board_size**2).sum()
+    word_tuples_naive = word_tuples[:max_word_tuple_idx_naive]
+
+    num_words, packing_level, mean_word_len, total_overlap = get_word_set_stats(word_tuples_naive)
+    print("\nPre-optimization word stats:")
+    print(f"    num_words: {num_words}")
+    print(f"    packing_level: {packing_level:.3f}")
+    print(f"    mean_word_len: {mean_word_len:.2f}")
+    print(f"    total_overlap: {total_overlap}")
+
+    # Run the script
+    p = subprocess.Popen(["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "--all-solutions", "MiniZinc_scripts/find_dense_overlap_word_subset.mzn", "tmp/pre_data.dzn"], stdout=subprocess.PIPE)
+    # Wait for 30 (60) seconds, then kill the process and return the best result found thus far
+    time.sleep(30)
+    p.terminate()
+
+    # Return indices of the words placed in the set
+
+    raw_word_indices = p.stdout.read()
+
+    # TODO: ADD FALL-BACK LOGIC FOR CASE WHEN NO IMPROVEMENT CAN BE FOUND
+
+    indices = [int(idx) for idx in raw_word_indices.split(b"----------")[-2].strip().split()]
+    word_tuples, non_word_tuples = [wt for i,wt in enumerate(word_tuples) if i in indices], [wt for i,wt in enumerate(word_tuples) if i not in indices]
+
+    removed_word_tuples = set(word_tuples_naive) - set(word_tuples)
+    added_word_tuples = set(word_tuples) - set(word_tuples_naive)
+    print(f"\nWords removed: {', '.join([wt.pretty for wt in removed_word_tuples])}")
+    print(f"Words added: {', '.join([wt.pretty for wt in added_word_tuples])}")
+    # TODO: SELECT HIDDEN WORDS FROM SUBSET OF non_word_tuples FOR FURTHER OPTIMIZATION
+    #       NEED TO MAKE SURE IT'S DONE WRT SEMANITIC SIMILARITY
+    #       STORE THIS INFORMATION WITHIN THE WORD OBJECT
+
+    num_words, packing_level, mean_word_len, total_overlap = get_word_set_stats(word_tuples)
+    print("\nPost-optimization word stats:")
+    print(f"    num_words: {num_words}")
+    print(f"    packing_level: {packing_level:.3f}")
+    print(f"    mean_word_len: {mean_word_len:.2f}")
+    print(f"    total_overlap: {total_overlap}")
+
+    return word_tuples
+
+
+def make_word_picking_data_file(pairwise_overlaps, board_words, board_size, packing_constant):
+    """Generated a temporary data.dzn file to pass to the minizinc script."""
+    with open("tmp/pre_data.dzn", "w") as outfile:
+        outfile.write(f"n = {board_size};\n")
+        outfile.write(f"m = {len(board_words)};\n")
+        outfile.write(f"p = {packing_constant};\n\n")
+        outfile.write(f"word_lens = [ {', '.join([str(len(word)) for word in board_words])} ];\n")
+        outfile.write(f"""words = [ {', '.join(['"'+word+'"' for word in board_words])} ];\n\n""")
+        # outfile.write(f"overlaps = [| {' | '.join([', '.join([str(round(x,3)) for x in row]) for row in pairwise_overlaps])} |];\n")
+        outfile.write(f"overlaps = [| {' | '.join([', '.join([str(int(1000*x)) for x in row]) for row in pairwise_overlaps])} |];\n")
+
 
 def make_data_file(board_words, board_size, strategy):
     """Generated a temporary data.dzn file to pass to the minizinc script."""
@@ -64,9 +196,13 @@ def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
         new_word_tuples_to_fit = [wt if wt != new_hidden_word_tuple else hidden_word_tuple for wt in new_word_tuples_to_fit]
     return new_word_tuples_to_fit, new_hidden_word_tuple_dict
 
-def make_puzzle(topic, board_size, packing_constant, strategy):
+def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
     word_tuples, hidden_word_tuple_dict = get_related_words(topic)
-    word_tuples_to_fit = get_words_for_board(word_tuples, board_size, packing_constant)
+    if optimize_words:
+        word_tuples_to_fit = get_words_for_board_optimize(word_tuples, board_size, packing_constant)
+    else:
+        word_tuples_to_fit = get_words_for_board(word_tuples, board_size, packing_constant)
+
     # words, hidden_word_dict = get_related_words(topic)
     # words_to_fit = get_words_for_board(words, board_size, 1.10)
     # board_words = [word.replace(" ", "").replace("-", "").upper() for word in words_to_fit]
@@ -139,9 +275,11 @@ if __name__ == "__main__":
                         help="Ratio of total letters to # board squares (default=1.10)")
     parser.add_argument("--strategy", type=str, default="median",
                         help="Search strategy to use, one of 'min', 'median', 'max' (default='median')")
+    parser.add_argument("--optimize_words", type=bool, default=False,
+                        help="Optimize the word distribution for letter-overlaps in advance (default=False)")
     args = parser.parse_args()
 
     # make_puzzle("flamboyant", 15, 1.05)
     # make_puzzle("coffee", 15, 1.10)
     # make_puzzle("dishwasher", 15, 1.10) # can't find ANYTHING
-    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy)
+    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.optimize_words)

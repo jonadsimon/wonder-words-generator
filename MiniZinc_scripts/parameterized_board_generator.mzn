@@ -56,6 +56,8 @@ annotation pos_val_strat;
 solve :: seq_search([
   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], pos_var_strat, pos_val_strat)
   else int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)
+%   else int_search([word_delta_y[i], word_delta_x[i]], smallest, indomain_min)
+%   else int_search([word_delta_y[i], word_delta_x[i]], largest, indomain_max)
   endif | i in reverse(1..m), x in 1..2])
   % ADD AN ALTERNATE ITERATION SCHEME THAT GOES m, 1, m-1, 2, ...
       satisfy;
