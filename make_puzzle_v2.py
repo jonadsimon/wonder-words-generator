@@ -367,13 +367,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("topic", type=str, nargs='+',
                         help="Topic for the words; can be one string or multiple strings")
-    parser.add_argument("--board_size", type=int, default=15,
+    parser.add_argument("--board-size", type=int, default=15,
                         help="Size of the board to fill (default=15)")
-    parser.add_argument("--packing_constant", type=float, default=1.10,
+    parser.add_argument("--packing-constant", type=float, default=1.10,
                         help="Ratio of total letters to # board squares (default=1.10)")
     parser.add_argument("--strategy", type=str, default="median",
                         help="Search strategy to use, one of 'min', 'median', 'max' (default='median')")
-    parser.add_argument("--optimize_words", type=bool, default=False,
+    parser.add_argument("--optimize-words", type=bool, default=False, action=argparse.BooleanOptionalAction,
                         help="Optimize the word distribution for letter-overlaps in advance (default=False)")
     args = parser.parse_args()
 
