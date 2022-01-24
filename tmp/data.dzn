@@ -1,9 +1,9 @@
 n = 15;
-m = 44;
+m = 61;
 
-max_len = 7;
-word_lens = [ 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7 ];
-words = [| D, A, T, A, E, E, E | T, E, S, T, E, E, E | R, E, L, U, E, E, E | V, T, O, L, E, E, E | L, O, G, I, C, E, E | S, O, N, A, R, E, E | R, O, B, O, T, E, E | M, O, U, S, E, E, E | L, I, D, A, R, E, E | R, A, D, A, R, E, E | L, A, S, E, R, E, E | A, S, I, M, O, E, E | C, H, E, S, S, E, E | D, A, R, P, A, E, E | I, B, M, E, R, E, E | J, O, U, L, E, E, E | G, O, F, A, I, E, E | C, H, I, N, A, E, E | D, E, L, F, T, E, E | W, H, E, E, L, E, E | C, R, A, F, T, E, E | D, E, V, I, C, E, E | M, A, T, R, I, X, E | W, E, I, G, H, T, E | M, U, S, C, L, E, E | S, P, R, I, N, G, E | W, A, T, S, O, N, E | S, A, M, P, L, E, E | C, Y, B, O, R, G, E | O, P, T, I, C, S, E | G, O, O, G, L, E, E | D, E, N, V, E, R, E | M, O, D, U, L, E, E | F, A, M, I, L, Y, E | M, A, C, H, I, N, E | A, L, P, H, A, G, O | B, A, T, T, E, R, Y | T, H, E, O, R, E, M | T, A, C, T, I, L, E | A, D, A, L, I, N, E | U, N, I, M, A, T, E | D, R, O, P, O, U, T | D, E, C, O, D, E, R | A, N, D, R, O, I, D |];
+max_len = 5;
+word_lens = [ 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5 ];
+words = [| D, U, T, Y, E | T, O, I, L, E | H, I, R, E, E | M, O, R, N, E | W, E, E, K, E | S, O, U, R, E | I, S, H, A, E | P, L, O, W, E | D, A, Y, S, E | B, O, O, K, E | N, O, O, N, E | P, O, S, T, E | L, I, N, E, E | L, I, C, K, E | M, O, O, N, E | H, E, R, O, E | F, O, R, M, E | W, A, S, H, E | D, E, A, L, E | T, A, S, K, E | L, A, T, E, E | L, A, S, T, E | S, P, O, T, E | W, H, A, T, E | D, U, S, K, E | B, U, L, L, E | G, A, M, E, E | D, I, E, L, E | P, L, A, Y, E | W, O, R, K, E | E, V, E, N, E | L, A, N, D, E | M, O, L, D, E | T, U, R, N, E | C, R, O, P, E | H, E, L, P, E | C, A, M, E, E | M, A, K, E, E | H, E, L, D, E | K, N, E, A, D | C, R, A, F, T | S, P, O, R, T | S, T, I, N, T | B, E, R, T, H | S, H, A, P, E | C, H, O, R, E | A, P, P, L, Y | S, O, L, V, E | T, O, D, A, Y | C, H, E, A, T | F, O, R, G, E | C, A, P, E, R | P, L, A, C, E | T, R, A, D, E | M, O, U, L, D | B, R, I, N, G | W, R, E, A, K | N, I, G, H, T | M, O, N, E, Y | S, T, U, D, Y | L, A, B, O, R |];
 
-pos_var_strat = smallest;
-pos_val_strat = indomain_min;
+pos_var_strat = first_fail;
+pos_val_strat = indomain_median;

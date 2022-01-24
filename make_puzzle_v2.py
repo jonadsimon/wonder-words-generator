@@ -197,6 +197,17 @@ def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
         new_word_tuples_to_fit = [wt if wt != new_hidden_word_tuple else hidden_word_tuple for wt in new_word_tuples_to_fit]
     return new_word_tuples_to_fit, new_hidden_word_tuple_dict
 
+def reshuffle_words_to_fit(word_tuples_to_fit):
+    """Within each length-class, reshuffle the words."""
+    new_word_tuples_to_fit = deepcopy(word_tuples_to_fit)
+    distinct_lens = set(len(wt.board) for wt in new_word_tuples_to_fit)
+    for word_len in distinct_lens:
+        word_inds_with_len = [i for i,wt in enumerate(new_word_tuples_to_fit) if len(wt.board) == word_len]
+        random.shuffle(word_inds_with_len)
+        # Relies on the fact that all words of a given length are consequtive in the list
+        new_word_tuples_to_fit = new_word_tuples_to_fit[:min(word_inds_with_len)] + [new_word_tuples_to_fit[i] for i in word_inds_with_len] + new_word_tuples_to_fit[max(word_inds_with_len)+1:]
+    return new_word_tuples_to_fit
+
 def find_word_in_board(board, word):
     """Find word in the board manually rather than taking them as output from MiniZinc because
     MiniZinc does not notice when the same word has been added to the board twice.
@@ -298,7 +309,8 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
             # process is still running, so kill it, increment retries, shuffle the words, and continue
             p.terminate()
             retries += 1
-            word_tuples_to_fit, hidden_word_tuple_dict = reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict)
+            # word_tuples_to_fit, hidden_word_tuple_dict = reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict)
+            word_tuples_to_fit = reshuffle_words_to_fit(word_tuples_to_fit)
 
             print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n", sep="")
             print({l: wt.pretty for l,wt in hidden_word_tuple_dict.items()}, "\n")
