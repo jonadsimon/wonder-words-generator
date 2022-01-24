@@ -345,7 +345,7 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
         board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
         k += 1
     # Print the topic above the board
-    print(f"\nTopic: {topic}\n\n")
+    print(f"\nTopic:  {' / '.join(topic)}\n\n")
     for row in board:
         print(" ".join(row))
     print("\n\n", "   ".join(sorted([wt.pretty for wt in word_tuples_to_fit])), sep="")
@@ -353,8 +353,8 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
 if __name__ == "__main__":
     # Parse the arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("topic", type=str,
-                        help="Topic for the words")
+    parser.add_argument("topic", type=str, nargs='+',
+                        help="Topic for the words; can be one string or multiple strings")
     parser.add_argument("--board_size", type=int, default=15,
                         help="Size of the board to fill (default=15)")
     parser.add_argument("--packing_constant", type=float, default=1.10,

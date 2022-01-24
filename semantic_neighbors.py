@@ -1,5 +1,6 @@
 """Ping relatedwords.org to get list of semantic neighbors. Works much better than simple FastText similarity."""
 
+import time
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -8,7 +9,7 @@ import math
 from Levenshtein import distance as levenshtein_distance
 import unidecode
 from nltk.stem.porter import PorterStemmer
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 WordTuple = namedtuple('WordTuple', ['pretty', 'board'])
 
@@ -36,6 +37,10 @@ def filter_word_strings(words):
 
     # Remove words which contain characters other than: a-z/A-Z, spaces, hyphens.
     words = [word for word in words if not re.search(r"[^a-zA-Z\-\s]", word)]
+
+    # Remove words that are identical to one another.
+    # Hacky solution from https://stackoverflow.com/a/17016257/2562771
+    words = list(OrderedDict.fromkeys(words))
 
     # Remove words that are superstrings of another existing word.
     super_words = []
@@ -92,7 +97,7 @@ def filter_word_strings(words):
 
 
 
-def get_related_words(word, score_cutoff=0.3, neighbors_cutoff=150):
+def get_related_words(word_list, score_cutoff=0.45, neighbors_cutoff=100):
     """Fetch related words from relatedwords.org, and clean them up.
 
     Lowered originally-chosen cufodd of 0.45 --> 0.3 because too many issues with generating puzzles."""
@@ -106,19 +111,25 @@ def get_related_words(word, score_cutoff=0.3, neighbors_cutoff=150):
     #         {'word': <neighbor_word>, 'score': <similarity_score>, 'from': <db_source>}
     #      ]
     #   }
-    r = requests.get(f"https://relatedwords.org/relatedto/{word}")
-    soup = BeautifulSoup(r.content, 'html.parser')
-    blob = soup.find(id="preloadedDataEl")
-    words_json = json.loads(blob.contents[0])
+    words = []
+    for word in word_list:
+        r = requests.get(f"https://relatedwords.org/relatedto/{word}")
+        soup = BeautifulSoup(r.content, 'html.parser')
+        blob = soup.find(id="preloadedDataEl")
+        words_json = json.loads(blob.contents[0])
 
-    # Trim down the words set as a function of score_cutoff and neighbors_cutoff.
-    words = [words_json["query"]]
-    for i, term in enumerate(words_json["terms"]):
-         if term["score"] > score_cutoff and i < neighbors_cutoff:
-             words.append(term["word"])
-         else:
-             break
+        # Trim down the words set as a function of score_cutoff and neighbors_cutoff.
+        words.append((words_json["query"],1000))
+        for i, term in enumerate(words_json["terms"]):
+             if term["score"] > score_cutoff and i < neighbors_cutoff:
+                 words.append((term["word"],term["score"]))
+             else:
+                 break
+        # Pause for a second so the website doesn't get suspicious
+        time.sleep(1.5)
 
+    # Order words by score, then toss the score info
+    words = list(zip(*sorted(words, key=lambda x: x[1], reverse=True)))[0]
     words = filter_word_strings(words)
 
     # Convert words to word-tuples, and operate on these going forward
