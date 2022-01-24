@@ -10,6 +10,7 @@ import time
 import subprocess
 
 import argparse
+import warnings
 
 # TODO: CLEAN UP THIS MESS OF A FUNCTION
 def get_word_set_stats(words):
@@ -196,6 +197,71 @@ def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
         new_word_tuples_to_fit = [wt if wt != new_hidden_word_tuple else hidden_word_tuple for wt in new_word_tuples_to_fit]
     return new_word_tuples_to_fit, new_hidden_word_tuple_dict
 
+def find_word_in_board(board, word):
+    """Find word in the board manually rather than taking them as output from MiniZinc because
+    MiniZinc does not notice when the same word has been added to the board twice.
+
+    Returns a list of lists of tuples.
+    Each sublist encodes one instance of the word on the board.
+    Each tuple encodes the coordinates of a letter within the word.
+
+    Typically the top-level list will have only one element, since each word is
+    only supposed to appear on the board once.
+    """
+    # Can be >1 location if the word was added to the board in multiple places.
+    word_locations = []
+    for y in range(len(board)):
+        for x in range(len(board)):
+            for dy in (-1,0,1):
+                for dx in (-1,0,1):
+                    if dy == 0 and dx == 0:
+                        continue
+                    implied_word = ""
+                    for i in range(len(word)):
+                        if 0 <= y+i*dy < len(board) and 0 <= x+i*dx < len(board):
+                            implied_word += board[y+i*dy][x+i*dx]
+                        else:
+                            break # if word runs off the edge, it's automoatically wrong
+                    if implied_word == word:
+                        word_locations.append([(y+i*dy, x+i*dx) for i in range(len(word))])
+    return word_locations
+
+
+def find_words_in_board(board, word_tuples):
+    """Find word in the board manually rather than taking them as output from MiniZinc because
+    MiniZinc does not notice when the same word has been added to the board twice.
+
+    Four possibilities for each word:
+    1) Word doesn't appear on board at all --> error
+    2) Word appears on board once, and at least 1 letter is uncovered --> ok
+    3) Word appears on board once, and is completely covered --> issue warning & remove word
+    4) Word appears on board more than once --> issue warning & generate new board
+
+    Return the words satisfying the different conditions
+    """
+    word_locations_on_board =  [find_word_in_board(board, wt.board) for wt in word_tuples]
+
+    covered_up_words = []
+    doubled_up_words = []
+    for i, wt in enumerate(word_tuples):
+        if len(word_locations_on_board[i]) == 0:
+            raise ValueError(f"word '{wt.board}' does not appear in the board, something has gone HORRIBLY wrong")
+        if len(word_locations_on_board[i]) > 1:
+            doubled_up_words.append(wt)
+            continue
+        # Check if word is covered-up or not. Only bother checking words that appear once.
+        w1_letter_positions_remaining = word_locations_on_board[i][:]
+        for j, wt2 in enumerate(word_tuples):
+            if i == j:
+                continue
+            for loc in word_locations_on_board[j][0]:
+                if loc in w1_letter_positions_remaining:
+                    w1_letter_positions_remaining = [pos for pos in w1_letter_positions_remaining if pos != loc]
+            if not w1_letter_positions_remaining:
+                covered_up_words.append(wt)
+    return doubled_up_words, covered_up_words
+
+
 def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
     word_tuples, hidden_word_tuple_dict = get_related_words(topic)
     if optimize_words:
@@ -241,6 +307,26 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
 
         raw_board = p.stdout.read()
         raw_board = raw_board.split(b"\n\n")[0] # remove the trailing non-board characters
+
+        # Four possibilities for each word:
+        # 1) Word doesn't appear on board at all --> error
+        # 2) Word appears on board once, and at least 1 letter is uncovered --> ok
+        # 3) Word appears on board once, and is completely covered --> issue warning & remove word
+        # 4) Word appears on board more than once --> issue warning & generate new board
+        # TODO FOR LATER: EDGE-CASE WHERE REMOVING ONE OVERLAPPING WORD RENDERS ANOTHER NON-OVERLAPPING
+        # TODO FOR LATER: ANOTHER EDGE-CASE WHERE A WORD GETS ADDED WHEN THE HIDDEN LETTERS GET FILLED IN
+        board = [line.strip().split() for line in raw_board.decode("utf-8").strip().split("\n")] # THIS IS REDUNDANT
+        covered_up_words, doubled_up_words = find_words_in_board(board, word_tuples_to_fit)
+        # If word appears multiple times, print a warning and try again
+        if doubled_up_words:
+            # warnings.warn(f"\nwords appear more than once on the board: {', '.join([wt.pretty for wt in doubled_up_words])}\nboard will be discarded and regenerated\n")
+            print(f"\nwords appear more than once on the board and will be regenerated: {', '.join([wt.pretty for wt in doubled_up_words])}\n")
+            continue
+        # Remove any covered-up words from the word set
+        if covered_up_words:
+            # warnings.warn(f"\nwords are completely covered-up: {', '.join([wt.pretty for wt in covered_up_words])}\nwords will be removed from the displayed list\n")
+            print(f"\nwords are completely covered-up and will be removed from the displayed list: {', '.join([wt.pretty for wt in covered_up_words])}\n")
+            word_tuples_to_fit = [wt for wt in word_tuples_to_fit if wt not in covered_up_words]
 
         board_found = True
 
