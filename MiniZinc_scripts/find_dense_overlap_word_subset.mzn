@@ -20,7 +20,8 @@ constraint sum(i in 1..m where use_word[i])(word_lens[i]) < p * pow(n,2);
 solve :: int_search(use_word, input_order, indomain_max)
 %   satisfy;
 % solve
-  maximize sum(i in 1..m where use_word[i])(sum(j in (i+1)..m where use_word[j])(overlaps[i,j]));
+%   maximize sum(i in 1..m where use_word[i])(sum(j in (i+1)..m where use_word[j])(overlaps[i,j]));
+  maximize min(i in 1..m where use_word[i])(sum(j in 1..m where use_word[j] /\ i != j)(overlaps[i,j]));
   
 % output [ "\nnum_words:\t" ++ format(sum(i in 1..m)(fix(use_word[i]))) ++ "\n" ];
 % output [ "packing_level:\t" ++ format(sum(i in 1..m where use_word[i])(word_lens[i]) / pow(n,2)) ++ "\n" ];

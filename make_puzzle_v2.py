@@ -103,7 +103,8 @@ def get_words_for_board_optimize(word_tuples, board_size, packing_constant=1.1):
 
     # This is SUPER hacky, should have a Word class that handles these representational differences.
     word_tuples = sorted(word_tuples, key=lambda wt: len(wt.board))
-    pairwise_overlaps = ahf.get_overlaps_pairwise([wt.board for wt in word_tuples])
+    # pairwise_overlaps = ahf.get_overlaps_pairwise([wt.board for wt in word_tuples])
+    pairwise_overlaps = ahf.get_collision_avoidance_probability_pairwise([wt.board for wt in word_tuples], board_size)
 
     make_word_picking_data_file(pairwise_overlaps, [wt.board for wt in word_tuples], board_size, packing_constant)
 
@@ -129,8 +130,11 @@ def get_words_for_board_optimize(word_tuples, board_size, packing_constant=1.1):
 
     # TODO: ADD FALL-BACK LOGIC FOR CASE WHEN NO IMPROVEMENT CAN BE FOUND
 
-    indices = [int(idx) for idx in raw_word_indices.split(b"----------")[-2].strip().split()]
-    word_tuples, non_word_tuples = [wt for i,wt in enumerate(word_tuples) if i in indices], [wt for i,wt in enumerate(word_tuples) if i not in indices]
+    if b"----------" in raw_word_indices: # Found at least one solution
+        indices = [int(idx) for idx in raw_word_indices.split(b"----------")[-2].strip().split()]
+        word_tuples, non_word_tuples = [wt for i,wt in enumerate(word_tuples) if i in indices], [wt for i,wt in enumerate(word_tuples) if i not in indices]
+    else: # Didn't find anything
+        word_tuples, non_word_tuples = word_tuples[:max_word_tuple_idx_naive], word_tuples[max_word_tuple_idx_naive:]
 
     removed_word_tuples = set(word_tuples_naive) - set(word_tuples)
     added_word_tuples = set(word_tuples) - set(word_tuples_naive)
@@ -159,7 +163,7 @@ def make_word_picking_data_file(pairwise_overlaps, board_words, board_size, pack
         outfile.write(f"word_lens = [ {', '.join([str(len(word)) for word in board_words])} ];\n")
         outfile.write(f"""words = [ {', '.join(['"'+word+'"' for word in board_words])} ];\n\n""")
         # outfile.write(f"overlaps = [| {' | '.join([', '.join([str(round(x,3)) for x in row]) for row in pairwise_overlaps])} |];\n")
-        outfile.write(f"overlaps = [| {' | '.join([', '.join([str(int(1000*x)) for x in row]) for row in pairwise_overlaps])} |];\n")
+        outfile.write(f"overlaps = [| {' | '.join([', '.join([str(int(100*x)) for x in row]) for row in pairwise_overlaps])} |];\n")
 
 
 def make_data_file(board_words, board_size, strategy):
