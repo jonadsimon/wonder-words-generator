@@ -220,6 +220,7 @@ def find_word_in_board(board, word):
     only supposed to appear on the board once.
     """
     # Can be >1 location if the word was added to the board in multiple places.
+    # Can ALSO happen if the word is a palindrome; this is a false positive case and should be removed.
     word_locations = []
     for y in range(len(board)):
         for x in range(len(board)):
@@ -234,7 +235,10 @@ def find_word_in_board(board, word):
                         else:
                             break # if word runs off the edge, it's automoatically wrong
                     if implied_word == word:
-                        word_locations.append([(y+i*dy, x+i*dx) for i in range(len(word))])
+                        # Before adding it, check that it's not a palindromic duplicate.
+                        new_loc = [(y+i*dy, x+i*dx) for i in range(len(word))]
+                        if all(sorted(loc) != sorted(new_loc) for loc in word_locations):
+                            word_locations.append(new_loc)
     return word_locations
 
 
@@ -270,7 +274,7 @@ def find_words_in_board(board, word_tuples):
                     w1_letter_positions_remaining = [pos for pos in w1_letter_positions_remaining if pos != loc]
             if not w1_letter_positions_remaining:
                 covered_up_words.append(wt)
-    return doubled_up_words, covered_up_words
+    return covered_up_words, doubled_up_words
 
 
 def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
@@ -332,7 +336,17 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
         # If word appears multiple times, print a warning and try again
         if doubled_up_words:
             # warnings.warn(f"\nwords appear more than once on the board: {', '.join([wt.pretty for wt in doubled_up_words])}\nboard will be discarded and regenerated\n")
-            print(f"\nwords appear more than once on the board and will be regenerated: {', '.join([wt.pretty for wt in doubled_up_words])}\n")
+            print(f"\nwords appear more than once so board be regenerated: {', '.join([wt.pretty for wt in doubled_up_words])}\n")
+
+            # THIS WHOLE BLOCK IS REDUNANT WITH CONTENTS OF "if p.poll() is None:" BLOCK ABOVE
+            # UNIFY THE LOGIC, THINGS ARE GETTING TOO MESSY
+            retries += 1
+            # word_tuples_to_fit, hidden_word_tuple_dict = reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict)
+            word_tuples_to_fit = reshuffle_words_to_fit(word_tuples_to_fit)
+
+            print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n", sep="")
+            print({l: wt.pretty for l,wt in hidden_word_tuple_dict.items()}, "\n")
+
             continue
         # Remove any covered-up words from the word set
         if covered_up_words:
