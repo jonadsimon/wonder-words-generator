@@ -16,6 +16,7 @@ array [1..m,1..max_len] of Letter: words; % array whose rows are words, with exc
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 array [1..n,1..n] of var Letter: board;
+array [1..n,1..n] of var bool: board_has_overlap;
 
 array [1..m] of var 1..n: word_pos_y; % values constrained by board size
 array [1..m] of var 1..n: word_pos_x; % values constrained by board size
@@ -42,6 +43,21 @@ constraint forall(i in 1..m)(
   )
 );
 
+% Function which outputs, for a given board position, whether this are multiple words overlapping that position
+% Need to check 3 cases for each word: (1) dy==0, (2) dx==0, (3) neither
+function var bool: has_overlap(var int: i, var int: j) = 
+  sum(k in 1..m)(
+    let {var int: x_dist = (j - word_pos_x[k]) * word_delta_x[k]; var int: y_dist = (i - word_pos_y[k]) * word_delta_y[k];} in
+    (word_delta_y[k] == 0 /\ i == word_pos_y[k] /\ x_dist >= 0 /\ x_dist < word_lens[k])
+    \/ (word_delta_x[k] == 0 /\ j == word_pos_x[k] /\ y_dist >= 0 /\ y_dist < word_lens[k])
+    \/ (word_delta_y[k] != 0 /\ word_delta_x[k] != 0 /\ x_dist == y_dist /\ x_dist >= 0 /\ x_dist < word_lens[k])
+) > 1;
+
+% Inefficient because requires iterating over all letters in all words for each board position
+constraint forall(i,j in 1..n)(
+  board_has_overlap[i,j] = has_overlap(i,j)
+);
+
 % Search the variables in order of decreasing word length (words are passed in as shortest-to-longest).
 % For each word first search the positions in min-to-max order (intuition: start from the left/top of the board then work your way in).
 % Then search the orientations in horizontal-to-diagonalmax order (intuition: diagonal words interfere with more other words)
@@ -50,16 +66,20 @@ annotation pos_var_strat;
 annotation pos_val_strat;
 
 % Define position searches and orientation searches separately, then interleave them in reverse order.
-% pos_searches = [int_search([word_pos_y[i], word_pos_x[i]], smallest, indomain_min) | i in i..m];
-% delta_searches =  [int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)  | i in i..m];
-solve :: seq_search([
+% solve :: int_search(array1d(board_has_overlap), first_fail, indomain_max) satisfy;
+
+solve :: seq_search([int_search(array1d(board_has_overlap), first_fail, indomain_max)] ++ [
   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], pos_var_strat, pos_val_strat)
   else int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)
-%   else int_search([word_delta_y[i], word_delta_x[i]], smallest, indomain_min)
-%   else int_search([word_delta_y[i], word_delta_x[i]], largest, indomain_max)
   endif | i in reverse(1..m), x in 1..2])
-  % ADD AN ALTERNATE ITERATION SCHEME THAT GOES m, 1, m-1, 2, ...
       satisfy;
+
+% % Define position searches and orientation searches separately, then interleave them in reverse order.
+% solve :: seq_search([
+%   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], pos_var_strat, pos_val_strat)
+%   else int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)
+%   endif | i in reverse(1..m), x in 1..2])
+%       satisfy;
 
 
 % Function which outputs, for a given board position, whether there is a word which overlaps that position

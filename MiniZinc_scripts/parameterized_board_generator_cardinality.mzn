@@ -1,4 +1,4 @@
-enum Letter = { E, R, O, A, T, L, I, S, N, M, G, C, P, D, H, W, U, K, V, F, B, Y, X, J, Z, Q }; % english letters in reverse frequency order
+include "global_cardinality_low_up_closed.mzn";
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% Variables whose values need to be passed in %%%
@@ -10,12 +10,15 @@ int: m; % number of words
 int: max_len; % length of the longest word being passed in
 
 array [1..m] of int: word_lens; % array giving the length of each word
-array [1..m,1..max_len] of Letter: words; % array whose rows are words, with excess length padded with other letters
+array [1..m,1..max_len] of 1..26: words; % array whose rows are words, with excess length padded with other letters
+
+array [1..26] of int: max_letter_counts; % array giving the total number of occurrences of each letter
+array [1..26] of int: min_letter_counts; % array giving the guess-timated lower-bounds on the number of occurrences of each letter
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-array [1..n,1..n] of var Letter: board;
+array [1..n,1..n] of var 1..26: board;
 
 array [1..m] of var 1..n: word_pos_y; % values constrained by board size
 array [1..m] of var 1..n: word_pos_x; % values constrained by board size
@@ -42,24 +45,31 @@ constraint forall(i in 1..m)(
   )
 );
 
+constraint global_cardinality_low_up_closed(
+  array1d(board), 1..26, min_letter_counts, max_letter_counts
+);
+
 % Search the variables in order of decreasing word length (words are passed in as shortest-to-longest).
 % For each word first search the positions in min-to-max order (intuition: start from the left/top of the board then work your way in).
-% Then search the orientations in horizontal-to-diagonalmax order (intuition: diagonal words interfere with more other words)
+% Then search the orientations in horizontal-to-diagonal order (intuition: diagonal words interfere with more other words)
 
-annotation pos_var_strat;
-annotation pos_val_strat;
+% annotation pos_var_strat;
+% annotation pos_val_strat;
 
+% % Define position searches and orientation searches separately, then interleave them in reverse order.
+% solve :: seq_search([
+%   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], pos_var_strat, pos_val_strat)
+%   else int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)
+%   endif | i in reverse(1..m), x in 1..2])
+%       satisfy;
 % Define position searches and orientation searches separately, then interleave them in reverse order.
-% pos_searches = [int_search([word_pos_y[i], word_pos_x[i]], smallest, indomain_min) | i in i..m];
-% delta_searches =  [int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)  | i in i..m];
-solve :: seq_search([
-  if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], pos_var_strat, pos_val_strat)
-  else int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)
-%   else int_search([word_delta_y[i], word_delta_x[i]], smallest, indomain_min)
-%   else int_search([word_delta_y[i], word_delta_x[i]], largest, indomain_max)
-  endif | i in reverse(1..m), x in 1..2])
-  % ADD AN ALTERNATE ITERATION SCHEME THAT GOES m, 1, m-1, 2, ...
-      satisfy;
+solve :: int_search(array1d(board), first_fail, indomain_max) satisfy;
+
+% seq_search([
+%   if x = 1 then int_search([word_pos_y[i], word_pos_x[i]], pos_var_strat, pos_val_strat)
+%   else int_search([word_delta_y[i], word_delta_x[i]], first_fail, indomain_median)
+%   endif | i in reverse(1..m), x in 1..2])
+%       satisfy;
 
 
 % Function which outputs, for a given board position, whether there is a word which overlaps that position

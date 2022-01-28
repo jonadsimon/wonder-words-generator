@@ -166,9 +166,9 @@ def make_word_picking_data_file(pairwise_overlaps, board_words, board_size, pack
         outfile.write(f"overlaps = [| {' | '.join([', '.join([str(int(100*x)) for x in row]) for row in pairwise_overlaps])} |];\n")
 
 
-def make_data_file(board_words, board_size, strategy):
+def make_data_file(board_words, board_size, strategy, filepath="tmp/data.dzn"):
     """Generated a temporary data.dzn file to pass to the minizinc script."""
-    with open("tmp/data.dzn", "w") as outfile:
+    with open(filepath, "w") as outfile:
         outfile.write(f"n = {board_size};\n")
         outfile.write(f"m = {len(board_words)};\n\n")
         outfile.write(f"max_len = {max([len(word) for word in board_words])};\n")
@@ -281,8 +281,8 @@ def find_words_in_board(board, word_tuples):
     return covered_up_words, doubled_up_words
 
 
-def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
-    word_tuples, hidden_word_tuple_dict = get_related_words(topic)
+def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, relatedness_cutoff, n_proc=4):
+    word_tuples, hidden_word_tuple_dict = get_related_words(topic, relatedness_cutoff)
     if optimize_words:
         word_tuples_to_fit = get_words_for_board_optimize(word_tuples, board_size, packing_constant)
     else:
@@ -301,31 +301,51 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
     # # Run the script
     # raw_board = subprocess.Popen("/Applications/MiniZincIDE.app/Contents/Resources/minizinc --solver Chuffed MiniZinc_scripts/parameterized_board_generator.mzn tmp/data.dzn", shell=True, stdout=subprocess.PIPE).stdout.read()
 
+
+    # Spawn n processes at a time, each with a different permutation of the words.
+    # For each process, let them run until 'timeout', and check each for completion.
+    # If any have completed, grab it as the one-and-only solution.
+    # If none have completed, permute them all and try again.
+    # Question: make new data files for use, or reuse the same one repeatedly?
+    # Answer: write a separate file for each to avoid needed to juggle read/write times
+
     board_found = False
     max_retries = 10
     retries = 0
     timeout = 10
     while retries < max_retries and not board_found:
 
-        # Generate Minizinc data file to feed into the parameterizd script.
-        make_data_file([wt.board for wt in word_tuples_to_fit], board_size, strategy)
+        for i in range(n_proc):
+            # Shuffle words separately for each run.
+            word_tuples_to_fit = reshuffle_words_to_fit(word_tuples_to_fit)
+            # Generate Minizinc data file to feed into the parameterizd script.
+            make_data_file([wt.board for wt in word_tuples_to_fit], board_size, strategy, f"tmp/data{i+1}.dzn")
 
         # Run the script
-        p = subprocess.Popen(["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator.mzn", "tmp/data.dzn"], stdout=subprocess.PIPE)
+        cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator.mzn"]
+        ps = [subprocess.Popen(cmd + [f"tmp/data{i+1}.dzn"], stdout=subprocess.PIPE) for i in range(n_proc)]
+
         time.sleep(timeout)
-        if p.poll() is None:
-            # process is still running, so kill it, increment retries, shuffle the words, and continue
-            p.terminate()
+
+        # Indices of finished processes
+        finished_proc_inds = [i for i,p in enumerate(ps) if p.poll() is not None]
+
+        # None of the processes finished, therefore kill all of them and continue
+        if not finished_proc_inds:
+            for p in ps:
+                p.terminate()
             retries += 1
-            # word_tuples_to_fit, hidden_word_tuple_dict = reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict)
-            word_tuples_to_fit = reshuffle_words_to_fit(word_tuples_to_fit)
-
-            print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n", sep="")
-            print({l: wt.pretty for l,wt in hidden_word_tuple_dict.items()}, "\n")
-
+            print(f"Attempt {retries} failed" + (", trying again\n" if retries < max_retries else ", terminating...\n"))
             continue
 
-        raw_board = p.stdout.read()
+        # If made it here, implies that at least one of the processes finished successfully.
+        # Therefore grab the result, and kill the unfinished processes.
+        finished_proc = ps[finished_proc_inds[0]]
+        for i,p in enumerate(ps):
+            if i not in finished_proc_inds:
+                p.terminate()
+
+        raw_board = finished_proc.stdout.read()
         raw_board = raw_board.split(b"\n\n")[0] # remove the trailing non-board characters
 
         # Four possibilities for each word:
@@ -340,7 +360,7 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words):
         # If word appears multiple times, print a warning and try again
         if doubled_up_words:
             # warnings.warn(f"\nwords appear more than once on the board: {', '.join([wt.pretty for wt in doubled_up_words])}\nboard will be discarded and regenerated\n")
-            print(f"\nwords appear more than once so board be regenerated: {', '.join([wt.pretty for wt in doubled_up_words])}\n")
+            print(f"\nwords appear more than once so board will be regenerated: {', '.join([wt.pretty for wt in doubled_up_words])}\n")
 
             # THIS WHOLE BLOCK IS REDUNANT WITH CONTENTS OF "if p.poll() is None:" BLOCK ABOVE
             # UNIFY THE LOGIC, THINGS ARE GETTING TOO MESSY
@@ -393,9 +413,11 @@ if __name__ == "__main__":
                         help="Search strategy to use, one of 'min', 'median', 'max' (default='median')")
     parser.add_argument("--optimize-words", type=bool, default=False, action=argparse.BooleanOptionalAction,
                         help="Optimize the word distribution for letter-overlaps in advance (default=False)")
+    parser.add_argument("--relatedness-cutoff", type=float, default=0.45,
+                        help="How closely a word must be semantically related to be included in the word set (default=0.45)")
     args = parser.parse_args()
 
     # make_puzzle("flamboyant", 15, 1.05)
     # make_puzzle("coffee", 15, 1.10)
     # make_puzzle("dishwasher", 15, 1.10) # can't find ANYTHING
-    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.optimize_words)
+    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.optimize_words, args.relatedness_cutoff)

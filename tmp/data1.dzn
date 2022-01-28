@@ -1,0 +1,9 @@
+n = 15;
+m = 52;
+
+max_len = 6;
+word_lens = [ 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6 ];
+words = [| P, I, E, D, E, E | B, R, A, W, E, E | D, E, E, P, E, E | R, O, A, N, E, E | S, K, I, N, E, E | P, I, N, K, E, E | B, L, U, E, E, E | C, Y, A, N, E, E | G, R, A, Y, E, E | R, I, C, H, E, E | T, O, N, E, E, E | T, I, N, T, E, E | S, H, O, T, E, E | H, U, E, S, E, E | H, U, E, D, E, E | G, R, E, Y, E, E | J, A, Z, Z, Y, E | A, Z, U, R, E, E | T, O, U, C, H, E | B, R, O, W, N, E | G, A, U, D, Y, E | B, R, A, V, E, E | G, L, O, S, S, E | G, R, E, E, N, E | P, A, I, N, T, E | I, M, B, U, E, E | S, H, A, D, E, E | S, T, A, I, N, E | F, L, U, S, H, E | S, E, P, I, A, E | W, H, I, T, E, E | B, L, A, C, K, E | T, I, N, G, E, E | G, U, I, S, E, E | L, I, G, H, T, E | S, H, O, W, Y, E | V, I, V, I, D, E | T, I, N, C, T, E | M, O, T, L, E, Y | C, H, R, O, M, A | M, O, T, T, L, E | S, I, L, V, E, R | R, E, D, D, E, N | B, R, I, G, H, T | C, O, L, O, U, R | P, U, R, P, L, E | A, U, R, I, F, Y | A, B, L, A, Z, E | I, N, D, I, G, O | C, H, A, N, G, E | F, L, A, S, H, Y | Y, E, L, L, O, W |];
+
+pos_var_strat = first_fail;
+pos_val_strat = indomain_median;
