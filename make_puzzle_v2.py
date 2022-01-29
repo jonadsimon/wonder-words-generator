@@ -65,7 +65,6 @@ def get_words_for_board_optimize(word_tuples, board_size, packing_constant=1.1):
 
     # This is SUPER hacky, should have a Word class that handles these representational differences.
     word_tuples = sorted(word_tuples, key=lambda wt: len(wt.board))
-    # pairwise_overlaps = ahf.get_overlaps_pairwise([wt.board for wt in word_tuples])
     pairwise_overlaps = ahf.get_collision_avoidance_probability_pairwise([wt.board for wt in word_tuples], board_size)
 
     make_word_picking_data_file(pairwise_overlaps, [wt.board for wt in word_tuples], board_size, packing_constant)
@@ -253,19 +252,8 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
     else:
         word_tuples_to_fit = get_words_for_board(word_tuples, board_size, packing_constant)
 
-    # words, hidden_word_dict = get_related_words(topic)
-    # words_to_fit = get_words_for_board(words, board_size, 1.10)
-    # board_words = [word.replace(" ", "").replace("-", "").upper() for word in words_to_fit]
-
     print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n", sep="")
     print({l: wt.pretty for l,wt in hidden_word_tuple_dict.items()}, "\n")
-
-    # # Generate Minizinc data file to feed into the parameterizd script.
-    # make_data_file([wt.board for wt in word_tuples_to_fit], board_size)
-    #
-    # # Run the script
-    # raw_board = subprocess.Popen("/Applications/MiniZincIDE.app/Contents/Resources/minizinc --solver Chuffed MiniZinc_scripts/parameterized_board_generator.mzn tmp/data.dzn", shell=True, stdout=subprocess.PIPE).stdout.read()
-
 
     # Spawn n processes at a time, each with a different permutation of the words.
     # For each process, let them run until 'timeout', and check each for completion.
