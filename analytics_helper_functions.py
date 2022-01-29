@@ -7,6 +7,9 @@ def get_num_letters_excess(words, board_size=15):
 def get_mean_word_length(words):
     return np.mean([len(word) for word in words])
 
+def get_max_word_length(words):
+    return np.max([len(word) for word in words])
+
 def get_num_overlaps_exact(w1, w2):
     overlaps = 0
     # Assume that w1 always has the same fixed orientation

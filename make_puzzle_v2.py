@@ -13,55 +13,20 @@ import argparse
 import warnings
 
 # TODO: CLEAN UP THIS MESS OF A FUNCTION
-def get_word_set_stats(words):
+def get_word_set_stats(words, board_size):
     board_words = [w.board for w in words]
+    collisions_avoidance_matrix = np.array(ahf.get_collision_avoidance_probability_pairwise(board_words, board_size))
+    tril_inds = np.tril_indices(len(words), k=-1)
 
     num_words = len(board_words)
     letter_excess = ahf.get_num_letters_excess(board_words)
     mean_len = ahf.get_mean_word_length(board_words)
-    total_overlaps = ahf.get_num_overlaps_total(board_words)
+    max_len = ahf.get_max_word_length(board_words)
 
-    return num_words, letter_excess, mean_len, total_overlaps
+    min_collision_avoidance_prob = collisions_avoidance_matrix[tril_inds].min()
+    mean_collision_avoidance_prob = collisions_avoidance_matrix[tril_inds].mean()
 
-# REPLACE WITH WORD-LENGTH NORMALIZED OVERLAP MEASURES
-def enrich_word_set(chosen_word_tuples, extra_word_tuples, max_mean_word_len=5.5):
-
-    num_words, letter_excess, mean_len, total_overlaps = get_word_set_stats(chosen_word_tuples)
-    print(f"\nInitial stats: num_words={num_words}, letter_excess={letter_excess:.2f}, mean_len={mean_len:.2f}, total_overlaps={total_overlaps}")
-
-    # Rather than hard-coding a static max_mean_word_len, make it a function of what we started with
-    # max_mean_word_len = 1.1 * mean_len
-
-    while True:
-        # Find least-overlapping word in the set
-
-        per_word_overlaps = [ahf.get_num_overlaps_per_word(wt.board, [wt.board for wt in chosen_word_tuples]) for wt in chosen_word_tuples]
-        least_overlapping_word_idx = np.argmin(per_word_overlaps)
-        least_overlapping_word = chosen_word_tuples[least_overlapping_word_idx]
-
-        chosen_word_tuples = chosen_word_tuples[:least_overlapping_word_idx] + chosen_word_tuples[least_overlapping_word_idx+1:]
-        extra_word_tuples = [least_overlapping_word] + extra_word_tuples
-
-        per_word_overlaps = [ahf.get_num_overlaps_per_word(wt.board, [wt.board for wt in chosen_word_tuples]) for wt in extra_word_tuples]
-        most_overlapping_word_idx = np.argmax(per_word_overlaps)
-        most_overlapping_word = extra_word_tuples[most_overlapping_word_idx]
-
-        chosen_word_tuples = chosen_word_tuples + [most_overlapping_word]
-        extra_word_tuples = extra_word_tuples[:most_overlapping_word_idx] + extra_word_tuples[most_overlapping_word_idx+1:]
-
-        num_words, letter_excess, mean_len, total_overlaps = get_word_set_stats(chosen_word_tuples)
-        print(f"\nRemoved: '{least_overlapping_word.pretty}', Added: '{most_overlapping_word.pretty}'")
-        print(f"Enriched stats: num_words={num_words}, letter_excess={letter_excess:.2f}, mean_len={mean_len:.2f}, total_overlaps={total_overlaps}")
-
-        if least_overlapping_word == most_overlapping_word:
-            print("\nRedundant transposition --> break")
-            break
-
-        if mean_len > max_mean_word_len:
-            print("\nPassed max_mean_word_len --> break")
-            break
-
-    return chosen_word_tuples
+    return num_words, letter_excess, mean_len, max_len, min_collision_avoidance_prob, mean_collision_avoidance_prob
 
 
 def get_words_for_board(word_tuples, board_size, packing_constant=1.1, max_word_len=8):
@@ -85,15 +50,12 @@ def get_words_for_board(word_tuples, board_size, packing_constant=1.1, max_word_
     if not num_words:
         raise ValueError(f"Too few semantic neighbor words to pack a {board_size}x{board_size} board.")
 
-    # chosen_word_tuples = enrich_word_set(word_tuples[:num_words], word_tuples[num_words:])
-    # return sorted(chosen_word_tuples, key=lambda wt: len(wt.board))
-
-    num_words, packing_level, mean_word_len, total_overlap = get_word_set_stats(word_tuples[:num_words])
+    num_words, packing_level, mean_word_len, max_word_len, min_collision_avoidance_prob, mean_collision_avoidance_prob = get_word_set_stats(word_tuples[:num_words], board_size)
     print("\nWord stats:")
     print(f"    num_words: {num_words}")
     print(f"    packing_level: {packing_level:.3f}")
-    print(f"    mean_word_len: {mean_word_len:.2f}")
-    print(f"    total_overlap: {total_overlap}")
+    print(f"    word_len (mean/max): {mean_word_len:.2f} / {max_word_len}")
+    print(f"    collision_avoidance_prob (min/mean): {min_collision_avoidance_prob:.6f} / {mean_collision_avoidance_prob:.6f}")
 
     return word_tuples[:num_words]
 
@@ -111,12 +73,12 @@ def get_words_for_board_optimize(word_tuples, board_size, packing_constant=1.1):
     max_word_tuple_idx_naive = (np.cumsum([len(wt.board) for wt in word_tuples]) < packing_constant * board_size**2).sum()
     word_tuples_naive = word_tuples[:max_word_tuple_idx_naive]
 
-    num_words, packing_level, mean_word_len, total_overlap = get_word_set_stats(word_tuples_naive)
+    num_words, packing_level, mean_word_len, max_word_len, min_collision_avoidance_prob, mean_collision_avoidance_prob = get_word_set_stats(word_tuples_naive, board_size)
     print("\nPre-optimization word stats:")
     print(f"    num_words: {num_words}")
     print(f"    packing_level: {packing_level:.3f}")
-    print(f"    mean_word_len: {mean_word_len:.2f}")
-    print(f"    total_overlap: {total_overlap}")
+    print(f"    word_len (mean/max): {mean_word_len:.2f} / {max_word_len}")
+    print(f"    collision_avoidance_prob (min/mean): {min_collision_avoidance_prob:.6f} / {mean_collision_avoidance_prob:.6f}")
 
     # Run the script
     p = subprocess.Popen(["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "--all-solutions", "MiniZinc_scripts/find_dense_overlap_word_subset.mzn", "tmp/pre_data.dzn"], stdout=subprocess.PIPE)
@@ -144,12 +106,12 @@ def get_words_for_board_optimize(word_tuples, board_size, packing_constant=1.1):
     #       NEED TO MAKE SURE IT'S DONE WRT SEMANITIC SIMILARITY
     #       STORE THIS INFORMATION WITHIN THE WORD OBJECT
 
-    num_words, packing_level, mean_word_len, total_overlap = get_word_set_stats(word_tuples)
+    num_words, packing_level, mean_word_len, max_word_len, min_collision_avoidance_prob, mean_collision_avoidance_prob = get_word_set_stats(word_tuples, board_size)
     print("\nPost-optimization word stats:")
     print(f"    num_words: {num_words}")
     print(f"    packing_level: {packing_level:.3f}")
-    print(f"    mean_word_len: {mean_word_len:.2f}")
-    print(f"    total_overlap: {total_overlap}")
+    print(f"    word_len (mean/max): {mean_word_len:.2f} / {max_word_len}")
+    print(f"    collision_avoidance_prob (min/mean): {min_collision_avoidance_prob:.6f} / {mean_collision_avoidance_prob:.6f}")
 
     return word_tuples
 
@@ -226,6 +188,7 @@ def find_word_in_board(board, word):
     # Can be >1 location if the word was added to the board in multiple places.
     # Can ALSO happen if the word is a palindrome; this is a false positive case and should be removed.
     word_locations = []
+    word_deltas = []
     for y in range(len(board)):
         for x in range(len(board)):
             for dy in (-1,0,1):
@@ -243,7 +206,8 @@ def find_word_in_board(board, word):
                         new_loc = [(y+i*dy, x+i*dx) for i in range(len(word))]
                         if all(sorted(loc) != sorted(new_loc) for loc in word_locations):
                             word_locations.append(new_loc)
-    return word_locations
+                            word_deltas.append((dy,dx))
+    return word_locations, word_deltas
 
 
 def find_words_in_board(board, word_tuples):
@@ -258,7 +222,8 @@ def find_words_in_board(board, word_tuples):
 
     Return the words satisfying the different conditions
     """
-    word_locations_on_board =  [find_word_in_board(board, wt.board) for wt in word_tuples]
+    word_locations_on_board, word_deltas_on_board = zip(*[find_word_in_board(board, wt.board) for wt in word_tuples])
+    flattened_deltas = [d for deltas in word_deltas_on_board for d in deltas]
 
     covered_up_words = []
     doubled_up_words = []
@@ -278,7 +243,7 @@ def find_words_in_board(board, word_tuples):
                     w1_letter_positions_remaining = [pos for pos in w1_letter_positions_remaining if pos != loc]
             if not w1_letter_positions_remaining:
                 covered_up_words.append(wt)
-    return covered_up_words, doubled_up_words
+    return covered_up_words, doubled_up_words, flattened_deltas
 
 
 def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, relatedness_cutoff, n_proc=4):
@@ -356,7 +321,7 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
         # TODO FOR LATER: EDGE-CASE WHERE REMOVING ONE OVERLAPPING WORD RENDERS ANOTHER NON-OVERLAPPING
         # TODO FOR LATER: ANOTHER EDGE-CASE WHERE A WORD GETS ADDED WHEN THE HIDDEN LETTERS GET FILLED IN
         board = [line.strip().split() for line in raw_board.decode("utf-8").strip().split("\n")] # THIS IS REDUNDANT
-        covered_up_words, doubled_up_words = find_words_in_board(board, word_tuples_to_fit)
+        covered_up_words, doubled_up_words, deltas = find_words_in_board(board, word_tuples_to_fit)
         # If word appears multiple times, print a warning and try again
         if doubled_up_words:
             # warnings.warn(f"\nwords appear more than once on the board: {', '.join([wt.pretty for wt in doubled_up_words])}\nboard will be discarded and regenerated\n")
@@ -387,13 +352,16 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
     blank_locs = [(i,j) for i,row in enumerate(board) for j,letter in enumerate(row) if letter == "_"]
     # If number of blanks is exactly 0, no special word is needed
     if len(blank_locs) not in hidden_word_tuple_dict and len(blank_locs) != 0:
-        print(len(blank_locs), blank_locs)
-        print(hidden_word_tuple_dict)
-        raise ValueError("Number of remaining blanks does not fit any available word.")
+        raise ValueError(f"Number of remaining blanks does not fit any available word: {len(blank_locs)}")
     k = 0
     for i, j in blank_locs:
         board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
         k += 1
+    delta_cntr = Counter(deltas)
+    print(f"\nhorizontal (fwd/bwd): {delta_cntr[(0,1)]}/{delta_cntr[(0,-1)]}")
+    print(f"vertical (fwd/bwd): {delta_cntr[(1,0)]}/{delta_cntr[(-1,0)]}")
+    print(f"diagonal du (fwd/bwd): {delta_cntr[(-1,1)]}/{delta_cntr[(1,-1)]}")
+    print(f"diagonal ud (fwd/bwd): {delta_cntr[(1,1)]}/{delta_cntr[(-1,-1)]}\n")
     # Print the topic above the board
     print(f"\nTopic:  {' / '.join(topic)}\n\n")
     for row in board:
