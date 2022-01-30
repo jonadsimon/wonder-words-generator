@@ -1,4 +1,4 @@
-from semantic_neighbors import get_related_words
+from semantic_neighbors import get_related_words, WordTuple
 import analytics_helper_functions as ahf
 
 import numpy as np
@@ -164,7 +164,8 @@ def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
     return new_word_tuples_to_fit, new_hidden_word_tuple_dict
 
 
-def reshuffle_words_to_fit(word_tuples_to_fit):
+# TODO: Update logic so shuffling letters doesn't break board output stats
+def reshuffle_words_to_fit(word_tuples_to_fit, shuffle_letters=False):
     """Within each length-class, reshuffle the words."""
     new_word_tuples_to_fit = deepcopy(word_tuples_to_fit)
     distinct_lens = set(len(wt.board) for wt in new_word_tuples_to_fit)
@@ -173,6 +174,9 @@ def reshuffle_words_to_fit(word_tuples_to_fit):
         random.shuffle(word_inds_with_len)
         # Relies on the fact that all words of a given length are consequtive in the list
         new_word_tuples_to_fit = new_word_tuples_to_fit[:min(word_inds_with_len)] + [new_word_tuples_to_fit[i] for i in word_inds_with_len] + new_word_tuples_to_fit[max(word_inds_with_len)+1:]
+    if shuffle_letters:
+        # Shuffle the letters within the words
+        new_word_tuples_to_fit = [WordTuple(pretty=wt.pretty, board=''.join(random.sample(wt.board, len(wt.board)))) for wt in new_word_tuples_to_fit]
     return new_word_tuples_to_fit
 
 
@@ -252,7 +256,7 @@ def find_words_in_board(board, word_tuples):
     return covered_up_words, doubled_up_words, flattened_deltas
 
 
-def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, relatedness_cutoff, n_proc=4):
+def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, relatedness_cutoff, shuffle_letters, n_proc=4):
     word_tuples, hidden_word_tuple_dict = get_related_words(topic, relatedness_cutoff)
     if optimize_words:
         word_tuples_to_fit = get_words_for_board_optimize(word_tuples, board_size, packing_constant)
@@ -277,7 +281,7 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
 
         for i in range(n_proc):
             # Shuffle words separately for each run.
-            word_tuples_to_fit = reshuffle_words_to_fit(word_tuples_to_fit)
+            word_tuples_to_fit = reshuffle_words_to_fit(word_tuples_to_fit, shuffle_letters=shuffle_letters)
             # Generate Minizinc data file to feed into the parameterizd script.
             make_data_file([wt.board for wt in word_tuples_to_fit], board_size, strategy, f"tmp/data{i+1}.dzn")
 
@@ -351,6 +355,10 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
         board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
         k += 1
     delta_cntr = Counter(deltas)
+
+    if shuffle_letters:
+        print("WARNING: shuffle-letters is on, therefore fwd/bwd statistics are unreliable")
+
     print(f"\nhorizontal (fwd/bwd): {delta_cntr[(0,1)]}/{delta_cntr[(0,-1)]}")
     print(f"vertical (fwd/bwd): {delta_cntr[(1,0)]}/{delta_cntr[(-1,0)]}")
     print(f"diagonal du (fwd/bwd): {delta_cntr[(-1,1)]}/{delta_cntr[(1,-1)]}")
@@ -378,9 +386,11 @@ if __name__ == "__main__":
                         help="Optimize the word distribution for letter-overlaps in advance (default=False)")
     parser.add_argument("--relatedness-cutoff", type=float, default=0.45,
                         help="How closely a word must be semantically related to be included in the word set (default=0.45)")
+    parser.add_argument("--shuffle-letters", type=bool, default=False, action=argparse.BooleanOptionalAction,
+                        help="Shuffle the letters within the words in addition to their order (default=False)")
     args = parser.parse_args()
 
     # Can't find solutions for words: 'flamboyant', 'coffee', 'dishwasher'
 
-    random.seed(1)
-    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.optimize_words, args.relatedness_cutoff)
+    random.seed(0)
+    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.optimize_words, args.relatedness_cutoff, args.shuffle_letters)
