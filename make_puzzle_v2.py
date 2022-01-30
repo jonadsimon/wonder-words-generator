@@ -10,9 +10,8 @@ import time
 import subprocess
 
 import argparse
-import warnings
 
-# TODO: CLEAN UP THIS MESS OF A FUNCTION
+
 def get_word_set_stats(words, board_size):
     board_words = [w.board for w in words]
     collisions_avoidance_matrix = np.array(ahf.get_collision_avoidance_probability_pairwise(board_words, board_size))
@@ -58,6 +57,7 @@ def get_words_for_board(word_tuples, board_size, packing_constant=1.1, max_word_
     print(f"    collision_avoidance_prob (min/mean): {min_collision_avoidance_prob:.6f} / {mean_collision_avoidance_prob:.6f}")
 
     return word_tuples[:num_words]
+
 
 def get_words_for_board_optimize(word_tuples, board_size, packing_constant=1.1):
     """Pick a cutoff which is just beyond limit of the board size."""
@@ -151,6 +151,7 @@ def make_data_file(board_words, board_size, strategy, filepath="tmp/data.dzn"):
         outfile.write(f"pos_var_strat = {pos_var_strat};\n")
         outfile.write(f"pos_val_strat = {pos_val_strat};\n")
 
+
 def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
     # things have become very wordy... reduce the verbosity
     new_hidden_word_tuple_dict = {}
@@ -162,6 +163,7 @@ def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
         new_word_tuples_to_fit = [wt if wt != new_hidden_word_tuple else hidden_word_tuple for wt in new_word_tuples_to_fit]
     return new_word_tuples_to_fit, new_hidden_word_tuple_dict
 
+
 def reshuffle_words_to_fit(word_tuples_to_fit):
     """Within each length-class, reshuffle the words."""
     new_word_tuples_to_fit = deepcopy(word_tuples_to_fit)
@@ -172,6 +174,7 @@ def reshuffle_words_to_fit(word_tuples_to_fit):
         # Relies on the fact that all words of a given length are consequtive in the list
         new_word_tuples_to_fit = new_word_tuples_to_fit[:min(word_inds_with_len)] + [new_word_tuples_to_fit[i] for i in word_inds_with_len] + new_word_tuples_to_fit[max(word_inds_with_len)+1:]
     return new_word_tuples_to_fit
+
 
 def find_word_in_board(board, word):
     """Find word in the board manually rather than taking them as output from MiniZinc because
@@ -209,6 +212,8 @@ def find_word_in_board(board, word):
     return word_locations, word_deltas
 
 
+# TODO: Break apart this logic to separately identify (1) positions/delta, (2) dupicates, (3) cover-ups
+#       As is, things are WAY too convolutedly interacting.
 def find_words_in_board(board, word_tuples):
     """Find word in the board manually rather than taking them as output from MiniZinc because
     MiniZinc does not notice when the same word has been added to the board twice.
@@ -233,15 +238,17 @@ def find_words_in_board(board, word_tuples):
             doubled_up_words.append(wt)
             continue
         # Check if word is covered-up or not. Only bother checking words that appear once.
-        w1_letter_positions_remaining = word_locations_on_board[i][:]
+        w1_letter_positions_remaining = word_locations_on_board[i][0][:]
         for j, wt2 in enumerate(word_tuples):
             if i == j:
                 continue
+            # For only bother checking first-occurrence of other words, since if they have > 1 occurrece,
+            # it means there exists a duplicate and the whole board will be thrown out regardless.
             for loc in word_locations_on_board[j][0]:
                 if loc in w1_letter_positions_remaining:
                     w1_letter_positions_remaining = [pos for pos in w1_letter_positions_remaining if pos != loc]
-            if not w1_letter_positions_remaining:
-                covered_up_words.append(wt)
+        if not w1_letter_positions_remaining:
+            covered_up_words.append(wt)
     return covered_up_words, doubled_up_words, flattened_deltas
 
 
@@ -312,7 +319,6 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
         covered_up_words, doubled_up_words, deltas = find_words_in_board(board, word_tuples_to_fit)
         # If word appears multiple times, print a warning and try again
         if doubled_up_words:
-            # warnings.warn(f"\nwords appear more than once on the board: {', '.join([wt.pretty for wt in doubled_up_words])}\nboard will be discarded and regenerated\n")
             print(f"\nwords appear more than once so board will be regenerated: {', '.join([wt.pretty for wt in doubled_up_words])}\n")
 
             # THIS WHOLE BLOCK IS REDUNANT WITH CONTENTS OF "if p.poll() is None:" BLOCK ABOVE
@@ -327,9 +333,8 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
             continue
         # Remove any covered-up words from the word set
         if covered_up_words:
-            # warnings.warn(f"\nwords are completely covered-up: {', '.join([wt.pretty for wt in covered_up_words])}\nwords will be removed from the displayed list\n")
-            print(f"\nwords are completely covered-up and will be removed from the displayed list: {', '.join([wt.pretty for wt in covered_up_words])}\n")
-            word_tuples_to_fit = [wt for wt in word_tuples_to_fit if wt not in covered_up_words]
+            print(f"\nwords are completely covered-up and will marked with an asterisk: {', '.join([wt.pretty for wt in covered_up_words])}\n")
+            # word_tuples_to_fit = [wt for wt in word_tuples_to_fit if wt not in covered_up_words]
 
         board_found = True
 
@@ -354,7 +359,9 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
     print(f"\nTopic:  {' / '.join(topic)}\n\n")
     for row in board:
         print(" ".join(row))
-    print("\n\n", "   ".join(sorted([wt.pretty for wt in word_tuples_to_fit])), sep="")
+    word_tuples_to_print = sorted(word_tuples_to_fit, key=lambda wt: wt.pretty)
+    print("\n\n", "   ".join(["ˣ" + wt.pretty + "ˣ" if wt in covered_up_words else wt.pretty for wt in word_tuples_to_print]), sep="")
+
 
 if __name__ == "__main__":
     # Parse the arguments
@@ -373,7 +380,7 @@ if __name__ == "__main__":
                         help="How closely a word must be semantically related to be included in the word set (default=0.45)")
     args = parser.parse_args()
 
-    # make_puzzle("flamboyant", 15, 1.05)
-    # make_puzzle("coffee", 15, 1.10)
-    # make_puzzle("dishwasher", 15, 1.10) # can't find ANYTHING
+    # Can't find solutions for words: 'flamboyant', 'coffee', 'dishwasher'
+
+    random.seed(1)
     make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.optimize_words, args.relatedness_cutoff)
