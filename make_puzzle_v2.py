@@ -59,72 +59,73 @@ def get_words_for_board(word_tuples, board_size, packing_constant=1.1, max_word_
     return word_tuples[:num_words]
 
 
-def get_words_for_board_optimize(word_tuples, board_size, packing_constant=1.1):
-    """Pick a cutoff which is just beyond limit of the board size."""
-    # Order the words by length. It's easier to pack shorter words, so prioritize them.
+def get_words_for_board_optimize_fast(word_tuples, board_size, packing_constant=1.1):
+    """Try different combinations of words to maximize the overlap_avoidance_probability metric
+    First try to maximize the minimum, and if that can be easily achieved, then maximize the mean."""
+    # Identify the longest words included in the word set, call it len_class
+    # Identify all left-out words in the same len_class
+    #
+    # For each included word in the length-class, check what the metric would be
+    # if we swapped it with one of the words not in the included set.
+    #
+    # If the swap reslts in a higher metric value, make the swap, and go back to iterating from the beginning
+    #
+    # If we make it all the way through the list, or hit some max # of re-loops, terminate
 
-    # This is SUPER hacky, should have a Word class that handles these representational differences.
     word_tuples = sorted(word_tuples, key=lambda wt: len(wt.board))
-    pairwise_overlaps = ahf.get_collision_avoidance_probability_pairwise([wt.board for wt in word_tuples], board_size)
-
-    make_word_picking_data_file(pairwise_overlaps, [wt.board for wt in word_tuples], board_size, packing_constant)
 
     max_word_tuple_idx_naive = (np.cumsum([len(wt.board) for wt in word_tuples]) < packing_constant * board_size**2).sum()
     word_tuples_naive = word_tuples[:max_word_tuple_idx_naive]
 
-    num_words, packing_level, mean_word_len, max_word_len, min_collision_avoidance_prob, mean_collision_avoidance_prob = get_word_set_stats(word_tuples_naive, board_size)
+    len_class = max(len(wt.board) for wt in word_tuples_naive)
+    word_tuples_sub = [wt for wt in word_tuples_naive if len(wt.board) < len_class]
+    word_tuples_incl = [wt for wt in word_tuples_naive if len(wt.board) == len_class]
+    word_tuples_excl = [wt for wt in word_tuples[max_word_tuple_idx_naive:] if len(wt.board) == len_class]
+
+    num_words, packing_level, mean_word_len, max_word_len, best_min_collision_avoidance_prob, best_mean_collision_avoidance_prob = get_word_set_stats(word_tuples_naive, board_size)
     print("\nPre-optimization word stats:")
     print(f"    num_words: {num_words}")
     print(f"    packing_level: {packing_level:.3f}")
     print(f"    word_len (mean/max): {mean_word_len:.2f} / {max_word_len}")
-    print(f"    collision_avoidance_prob (min/mean): {min_collision_avoidance_prob:.6f} / {mean_collision_avoidance_prob:.6f}")
+    print(f"    collision_avoidance_prob (min/mean): {best_min_collision_avoidance_prob:.6f} / {best_mean_collision_avoidance_prob:.6f}")
 
-    # Run the script
-    p = subprocess.Popen(["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "--all-solutions", "MiniZinc_scripts/find_dense_overlap_word_subset.mzn", "tmp/pre_data.dzn"], stdout=subprocess.PIPE)
-    # Wait for 30 (60) seconds, then kill the process and return the best result found thus far
-    time.sleep(30)
-    p.terminate()
+    loop_cnt, max_loops = 0, 1e5
+    while loop_cnt < max_loops:
+        better_set_found = False
+        for wt1 in word_tuples_incl:
+            for wt2 in word_tuples_excl:
+                word_tuples_incl_new = [wt if wt != wt1 else wt2 for wt in word_tuples_incl] # swap out wt1 for wt2
+                word_tuples_excl_new = [wt if wt != wt2 else wt1 for wt in word_tuples_excl] # swap out wt2 for wt1
+                _, _, _, _, min_collision_avoidance_prob, mean_collision_avoidance_prob = get_word_set_stats(word_tuples_incl_new, board_size)
+                # Compare using a lexical ordering, with min prioritized over mean
+                if (min_collision_avoidance_prob, mean_collision_avoidance_prob) > (best_min_collision_avoidance_prob, best_mean_collision_avoidance_prob):
+                    best_min_collision_avoidance_prob, best_mean_collision_avoidance_prob = min_collision_avoidance_prob, mean_collision_avoidance_prob
+                    word_tuples_incl, word_tuples_excl = word_tuples_incl_new, word_tuples_excl_new
+                    better_set_found = True
+                    break
+            if better_set_found:
+                break
+        if not better_set_found:
+            # Made it outside the double-loop without short-cutting
+            # Means we checked all combinations without finding any improvements, therfore we're done
+            break
+        loop_cnt += 1
+    print(f"\nEnded optimization with loop_cnt={loop_cnt}")
 
-    # Return indices of the words placed in the set
-
-    raw_word_indices = p.stdout.read()
-
-    # TODO: ADD FALL-BACK LOGIC FOR CASE WHEN NO IMPROVEMENT CAN BE FOUND
-
-    if b"----------" in raw_word_indices: # Found at least one solution
-        indices = [int(idx) for idx in raw_word_indices.split(b"----------")[-2].strip().split()]
-        word_tuples, non_word_tuples = [wt for i,wt in enumerate(word_tuples) if i in indices], [wt for i,wt in enumerate(word_tuples) if i not in indices]
-    else: # Didn't find anything
-        word_tuples, non_word_tuples = word_tuples[:max_word_tuple_idx_naive], word_tuples[max_word_tuple_idx_naive:]
-
-    removed_word_tuples = set(word_tuples_naive) - set(word_tuples)
-    added_word_tuples = set(word_tuples) - set(word_tuples_naive)
+    word_tuples_opt = word_tuples_sub + word_tuples_incl
+    removed_word_tuples = set(word_tuples_naive) - set(word_tuples_opt)
+    added_word_tuples = set(word_tuples_opt) - set(word_tuples_naive)
     print(f"\nWords removed: {', '.join([wt.pretty for wt in removed_word_tuples])}")
     print(f"Words added: {', '.join([wt.pretty for wt in added_word_tuples])}")
-    # TODO: SELECT HIDDEN WORDS FROM SUBSET OF non_word_tuples FOR FURTHER OPTIMIZATION
-    #       NEED TO MAKE SURE IT'S DONE WRT SEMANITIC SIMILARITY
-    #       STORE THIS INFORMATION WITHIN THE WORD OBJECT
 
-    num_words, packing_level, mean_word_len, max_word_len, min_collision_avoidance_prob, mean_collision_avoidance_prob = get_word_set_stats(word_tuples, board_size)
+    num_words, packing_level, mean_word_len, max_word_len, min_collision_avoidance_prob, mean_collision_avoidance_prob = get_word_set_stats(word_tuples_opt, board_size)
     print("\nPost-optimization word stats:")
     print(f"    num_words: {num_words}")
     print(f"    packing_level: {packing_level:.3f}")
     print(f"    word_len (mean/max): {mean_word_len:.2f} / {max_word_len}")
     print(f"    collision_avoidance_prob (min/mean): {min_collision_avoidance_prob:.6f} / {mean_collision_avoidance_prob:.6f}")
 
-    return word_tuples
-
-
-def make_word_picking_data_file(pairwise_overlaps, board_words, board_size, packing_constant):
-    """Generated a temporary data.dzn file to pass to the minizinc script."""
-    with open("tmp/pre_data.dzn", "w") as outfile:
-        outfile.write(f"n = {board_size};\n")
-        outfile.write(f"m = {len(board_words)};\n")
-        outfile.write(f"p = {packing_constant};\n\n")
-        outfile.write(f"word_lens = [ {', '.join([str(len(word)) for word in board_words])} ];\n")
-        outfile.write(f"""words = [ {', '.join(['"'+word+'"' for word in board_words])} ];\n\n""")
-        # outfile.write(f"overlaps = [| {' | '.join([', '.join([str(round(x,3)) for x in row]) for row in pairwise_overlaps])} |];\n")
-        outfile.write(f"overlaps = [| {' | '.join([', '.join([str(int(100*x)) for x in row]) for row in pairwise_overlaps])} |];\n")
+    return word_tuples_opt
 
 
 def make_data_file(board_words, board_size, strategy, filepath="tmp/data.dzn"):
@@ -256,7 +257,7 @@ def find_words_in_board(board, word_tuples):
 def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, relatedness_cutoff, n_proc=4):
     word_tuples, hidden_word_tuple_dict = get_related_words(topic, relatedness_cutoff)
     if optimize_words:
-        word_tuples_to_fit = get_words_for_board_optimize(word_tuples, board_size, packing_constant)
+        word_tuples_to_fit = get_words_for_board_optimize_fast(word_tuples, board_size, packing_constant)
     else:
         word_tuples_to_fit = get_words_for_board(word_tuples, board_size, packing_constant)
 
@@ -334,8 +335,7 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
             continue
         # Remove any covered-up words from the word set
         if covered_up_words:
-            print(f"\nwords are completely covered-up and will marked with an asterisk: {', '.join([wt.pretty for wt in covered_up_words])}\n")
-            # word_tuples_to_fit = [wt for wt in word_tuples_to_fit if wt not in covered_up_words]
+            print(f"\nwords that are completely covered-up and will marked with x's: {', '.join([wt.pretty for wt in covered_up_words])}\n")
 
         board_found = True
 
@@ -352,6 +352,8 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
         board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
         k += 1
     delta_cntr = Counter(deltas)
+
+    print(f"\nlength-{len(blank_locs)} word hidden in the board: {hidden_word_tuple_dict[len(blank_locs)].pretty}\n")
 
     print(f"\nhorizontal (fwd/bwd): {delta_cntr[(0,1)]}/{delta_cntr[(0,-1)]}")
     print(f"vertical (fwd/bwd): {delta_cntr[(1,0)]}/{delta_cntr[(-1,0)]}")
