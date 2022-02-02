@@ -153,18 +153,6 @@ def make_data_file(board_words, board_size, strategy, filepath="tmp/data.dzn"):
         outfile.write(f"pos_val_strat = {pos_val_strat};\n")
 
 
-def reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict):
-    # things have become very wordy... reduce the verbosity
-    new_hidden_word_tuple_dict = {}
-    new_word_tuples_to_fit = deepcopy(word_tuples_to_fit)
-    for num_letters, hidden_word_tuple in hidden_word_tuple_dict.items():
-        new_hidden_word_tuples = [wt for wt in word_tuples_to_fit if len(wt.board) == num_letters]
-        new_hidden_word_tuple = random.sample(new_hidden_word_tuples + [hidden_word_tuple], 1)[0]
-        new_hidden_word_tuple_dict.update({num_letters: new_hidden_word_tuple})
-        new_word_tuples_to_fit = [wt if wt != new_hidden_word_tuple else hidden_word_tuple for wt in new_word_tuples_to_fit]
-    return new_word_tuples_to_fit, new_hidden_word_tuple_dict
-
-
 # TODO: Update logic so shuffling letters doesn't break board output stats
 def reshuffle_words_to_fit(word_tuples_to_fit):
     """Within each length-class, reshuffle the words."""
@@ -272,9 +260,9 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
     # Answer: write a separate file for each to avoid needed to juggle read/write times
 
     board_found = False
-    max_retries = 10
+    max_retries = 15
     retries = 0
-    timeout = 10
+    timeout = 5
     while retries < max_retries and not board_found:
 
         for i in range(n_proc):
@@ -326,7 +314,6 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
             # THIS WHOLE BLOCK IS REDUNANT WITH CONTENTS OF "if p.poll() is None:" BLOCK ABOVE
             # UNIFY THE LOGIC, THINGS ARE GETTING TOO MESSY
             retries += 1
-            # word_tuples_to_fit, hidden_word_tuple_dict = reshuffle_hidden_words(word_tuples_to_fit, hidden_word_tuple_dict)
             word_tuples_to_fit = reshuffle_words_to_fit(word_tuples_to_fit)
 
             print("\n", [wt.pretty for wt in word_tuples_to_fit], "\n", sep="")
@@ -335,7 +322,7 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
             continue
         # Remove any covered-up words from the word set
         if covered_up_words:
-            print(f"\nwords that are completely covered-up and will marked with x's: {', '.join([wt.pretty for wt in covered_up_words])}\n")
+            print(f"\ncompletely covered-up words (will marked with x's): {', '.join([wt.pretty for wt in covered_up_words])}\n")
 
         board_found = True
 
@@ -352,6 +339,12 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
         board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
         k += 1
     delta_cntr = Counter(deltas)
+
+    # Check again for doubled-up words. It's possible the addition of hidden words
+    # to cause new doubled-up words to materialize. See Issue #51.
+    _, doubled_up_words, _ = find_words_in_board(board, word_tuples_to_fit)
+    if doubled_up_words:
+        raise ValueError(f"Addition of hidden word caused a word-doubling event ({', '.join([wt.pretty for wt in doubled_up_words])}), script will terminate.\n")
 
     print(f"\nlength-{len(blank_locs)} word hidden in the board: {hidden_word_tuple_dict[len(blank_locs)].pretty}\n")
 
