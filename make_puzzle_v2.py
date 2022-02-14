@@ -257,6 +257,8 @@ def find_words_in_board(board, word_tuples):
 
 def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, relatedness_cutoff, n_proc=4):
     word_tuples, hidden_word_tuple_dict = get_related_words(topic, relatedness_cutoff)
+    word_tuples = [wt for wt in word_tuples if len(wt.board) <= board_size]
+
     if optimize_words:
         word_tuples_to_fit = get_words_for_board_optimize_fast(word_tuples, board_size, packing_constant)
     else:
