@@ -139,7 +139,7 @@ def get_related_words(word_list, score_cutoff=0.45, neighbors_cutoff=100):
     hidden_word_tuple_dict = {}
     for word_tuple in word_tuples:
         # Keep short words (≤6 letters) in the primary word set
-        if len(word_tuple.board) > 6 and len(word_tuple.board) not in hidden_word_tuple_dict:
+        if len(word_tuple.board) > 5 and len(word_tuple.board) not in hidden_word_tuple_dict:
             hidden_word_tuple_dict.update({len(word_tuple.board): word_tuple})
     word_tuples = [word_tuple for word_tuple in word_tuples if word_tuple not in hidden_word_tuple_dict.values()]
 

@@ -25,20 +25,29 @@ array [1..m] of var -1..1: word_delta_x; % values constrained by {-1,0,1}
 
 constraint forall(i in 1..m)(word_delta_y[i] != 0 \/ word_delta_x[i] != 0); % at least one of dy,dx must be nonzero
 
+% Make dividing by 2 simpler
+function int: half_word_len_floor(int: i) = word_lens[i] div 2;
+function int: half_word_len_ceil(int: i) = word_lens[i] - (word_lens[i] div 2);
 
 % For each word, enforce that its last letter lies within the board.
 % Since its first letter also lies within the board, this implies that the entire word lies within the board, by convexity.
 constraint forall(i in 1..m)(
-  word_pos_y[i]+word_delta_y[i]*(word_lens[i]-1) >= 1
-  /\ word_pos_y[i]+word_delta_y[i]*(word_lens[i]-1) <= n
-  /\ word_pos_x[i]+word_delta_x[i]*(word_lens[i]-1) >= 1
-  /\ word_pos_x[i]+word_delta_x[i]*(word_lens[i]-1) <= n
+  % End-of-word constraints
+  word_pos_y[i]+word_delta_y[i]*(half_word_len_ceil(i)-1) >= 1
+  /\ word_pos_y[i]+word_delta_y[i]*(half_word_len_ceil(i)-1) <= n
+  /\ word_pos_x[i]+word_delta_x[i]*(half_word_len_ceil(i)-1) >= 1
+  /\ word_pos_x[i]+word_delta_x[i]*(half_word_len_ceil(i)-1) <= n
+  % Start-of-word constraints
+  /\ word_pos_y[i]-word_delta_y[i]*half_word_len_floor(i) >= 1
+  /\ word_pos_y[i]-word_delta_y[i]*half_word_len_floor(i) <= n
+  /\ word_pos_x[i]-word_delta_x[i]*half_word_len_floor(i) >= 1
+  /\ word_pos_x[i]-word_delta_x[i]*half_word_len_floor(i) <= n
 );
 
 % Link the words to the board by linking letters to board positions.
 constraint forall(i in 1..m)(
-  forall(j in 1..word_lens[i])(
-    words[i,j] = board[word_pos_y[i] + word_delta_y[i]*(j-1), word_pos_x[i] + word_delta_x[i]*(j-1)]
+  forall(j in (-1*half_word_len_floor(i)+1)..half_word_len_ceil(i))(
+    words[i,half_word_len_floor(i)+j] = board[word_pos_y[i] + word_delta_y[i]*(j-1), word_pos_x[i] + word_delta_x[i]*(j-1)]
   )
 );
 
@@ -62,7 +71,7 @@ solve :: seq_search([
 % Function which outputs, for a given board position, whether there is a word which overlaps that position
 function bool: square_is_covered(int: i, int: j) = 
   exists(k in 1..m)(
-    exists(l in 1..word_lens[k])(
+    exists(l in (-1*half_word_len_floor(k)+1)..half_word_len_ceil(k))(
       (i == fix(word_pos_y[k]) + fix(word_delta_y[k])*(l-1)) /\ (j == fix(word_pos_x[k]) + fix(word_delta_x[k])*(l-1))
   )
 );

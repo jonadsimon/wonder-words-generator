@@ -75,6 +75,8 @@ def get_words_for_board_optimize_fast(word_tuples, board_size, packing_constant=
     word_tuples = sorted(word_tuples, key=lambda wt: len(wt.board))
 
     max_word_tuple_idx_naive = (np.cumsum([len(wt.board) for wt in word_tuples]) < packing_constant * board_size**2).sum()
+    if max_word_tuple_idx_naive == len(word_tuples):
+        raise ValueError(f"Too few semantic neighbor words to pack a {board_size}x{board_size} board.")
     word_tuples_naive = word_tuples[:max_word_tuple_idx_naive]
 
     len_class = max(len(wt.board) for wt in word_tuples_naive)
@@ -89,14 +91,14 @@ def get_words_for_board_optimize_fast(word_tuples, board_size, packing_constant=
     print(f"    word_len (mean/max): {mean_word_len:.2f} / {max_word_len}")
     print(f"    collision_avoidance_prob (min/mean): {best_min_collision_avoidance_prob:.6f} / {best_mean_collision_avoidance_prob:.6f}")
 
-    loop_cnt, max_loops = 0, 1e5
+    loop_cnt, max_loops = 0, 1e3
     while loop_cnt < max_loops:
         better_set_found = False
         for wt1 in word_tuples_incl:
             for wt2 in word_tuples_excl:
                 word_tuples_incl_new = [wt if wt != wt1 else wt2 for wt in word_tuples_incl] # swap out wt1 for wt2
                 word_tuples_excl_new = [wt if wt != wt2 else wt1 for wt in word_tuples_excl] # swap out wt2 for wt1
-                _, _, _, _, min_collision_avoidance_prob, mean_collision_avoidance_prob = get_word_set_stats(word_tuples_incl_new, board_size)
+                _, _, _, _, min_collision_avoidance_prob, mean_collision_avoidance_prob = get_word_set_stats(word_tuples_sub+word_tuples_incl_new, board_size)
                 # Compare using a lexical ordering, with min prioritized over mean
                 if (min_collision_avoidance_prob, mean_collision_avoidance_prob) > (best_min_collision_avoidance_prob, best_mean_collision_avoidance_prob):
                     best_min_collision_avoidance_prob, best_mean_collision_avoidance_prob = min_collision_avoidance_prob, mean_collision_avoidance_prob
@@ -217,6 +219,17 @@ def find_words_in_board(board, word_tuples):
     Return the words satisfying the different conditions
     """
     word_locations_on_board, word_deltas_on_board = zip(*[find_word_in_board(board, wt.board) for wt in word_tuples])
+    # dummy_board = [['_' for _ in range(len(board))] for _ in range(len(board))]
+    # for i, word_locations in enumerate(word_locations_on_board):
+    #     for word_location in word_locations:
+    #         for letter_location in word_location:
+    #             if letter_location == (2,0):
+    #                 print(f"word {word_tuples[i].board} located at position: {word_location}")
+    #             y, x = letter_location
+    #             dummy_board[y][x] = 'X'
+    # for row in dummy_board:
+    #     print(" ".join(row))
+    # print()
     flattened_deltas = [d for deltas in word_deltas_on_board for d in deltas]
 
     covered_up_words = []
@@ -273,6 +286,7 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
 
         # Run the script
         cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator.mzn"]
+        # cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator_centered.mzn"]
         ps = [subprocess.Popen(cmd + [f"tmp/data{i+1}.dzn"], stdout=subprocess.PIPE) for i in range(n_proc)]
 
         time.sleep(timeout)
@@ -332,12 +346,20 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
     board = [line.strip().split() for line in raw_board.decode("utf-8").strip().split("\n")]
     blank_locs = [(i,j) for i,row in enumerate(board) for j,letter in enumerate(row) if letter == "_"]
     # If number of blanks is exactly 0, no special word is needed
+    # if len(blank_locs) not in hidden_word_tuple_dict and len(blank_locs) != 0:
+    #     raise ValueError(f"Number of remaining blanks does not fit any available word: {len(blank_locs)}")
+    # k = 0
+    # for i, j in blank_locs:
+    #     board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
+    #     k += 1
     if len(blank_locs) not in hidden_word_tuple_dict and len(blank_locs) != 0:
-        raise ValueError(f"Number of remaining blanks does not fit any available word: {len(blank_locs)}")
-    k = 0
-    for i, j in blank_locs:
-        board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
-        k += 1
+        # raise ValueError(f"Number of remaining blanks does not fit any available word: {len(blank_locs)}")
+        print(f"WARNING: Number of remaining blanks {len(blank_locs)} does not fit any available word")
+    else:
+        k = 0
+        for i, j in blank_locs:
+            board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
+            k += 1
     delta_cntr = Counter(deltas)
 
     # Check again for doubled-up words. It's possible the addition of hidden words
@@ -346,7 +368,9 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
     if doubled_up_words:
         raise ValueError(f"Addition of hidden word caused a word-doubling event ({', '.join([wt.pretty for wt in doubled_up_words])}), script will terminate.\n")
 
-    print(f"\nlength-{len(blank_locs)} word hidden in the board: {hidden_word_tuple_dict[len(blank_locs)].pretty}\n")
+    # print(f"\nlength-{len(blank_locs)} word hidden in the board: {hidden_word_tuple_dict[len(blank_locs)].pretty}\n")
+    if not (len(blank_locs) not in hidden_word_tuple_dict and len(blank_locs) != 0):
+        print(f"\nlength-{len(blank_locs)} word hidden in the board: {hidden_word_tuple_dict[len(blank_locs)].pretty}\n")
 
     print(f"\nhorizontal (fwd/bwd): {delta_cntr[(0,1)]}/{delta_cntr[(0,-1)]}")
     print(f"vertical (fwd/bwd): {delta_cntr[(1,0)]}/{delta_cntr[(-1,0)]}")
