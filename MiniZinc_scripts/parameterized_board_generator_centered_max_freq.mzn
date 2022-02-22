@@ -30,8 +30,12 @@ array [1..m] of var -1..1: word_delta_x; % values constrained by {-1,0,1}
 constraint forall(i in 1..m)(word_delta_y[i] != 0 \/ word_delta_x[i] != 0); % at least one of dy,dx must be nonzero
 
 % Make dividing by 2 simpler
-function int: half_word_len_floor(int: i) = word_lens[i] div 2;
-function int: half_word_len_ceil(int: i) = word_lens[i] - (word_lens[i] div 2);
+% function int: half_word_len_floor(int: i) = (max_freq_idx[i]+1);
+% function int: half_word_len_ceil(int: i) = word_lens[i] - (max_freq_idx[i]+1);
+function int: half_word_len_floor(int: i) = max_freq_idx[i];
+function int: half_word_len_ceil(int: i) = word_lens[i] - max_freq_idx[i];
+% function int: half_word_len_floor(int: i) = word_lens[i] div 2;
+% function int: half_word_len_ceil(int: i) = word_lens[i] - (word_lens[i] div 2);
 
 % For each word, enforce that its last letter lies within the board.
 % Since its first letter also lies within the board, this implies that the entire word lies within the board, by convexity.

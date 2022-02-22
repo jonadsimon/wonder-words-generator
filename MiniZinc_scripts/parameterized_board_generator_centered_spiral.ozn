@@ -1,0 +1,16 @@
+output [if square_is_covered(i,j) then _toString_Letter(fix(board[i,j]),false,false) else "_" endif++if j==n then "\n" else " " endif | i,j in 1..n, ]++["\n"];
+function string : _toString_Letter(opt int: x,bool: b,bool: json) = if occurs(x) then if b then showDznId(_enum_to_string_0_Letter[deopt(x)]) elseif json then ("{\"e\":\""++_enum_to_string_0_Letter[deopt(x)])++"\"}" else _enum_to_string_0_Letter[deopt(x)] endif else if json then "null" else "<>" endif endif;
+test square_is_covered(int: i,int: j) = exists([exists([i==fix(y_pos_map[word_pos[k]])+fix(y_delta_map[word_delta[k]])*(l-1) /\ j==fix(x_pos_map[word_pos[k]])+fix(x_delta_map[word_delta[k]])*(l-1) | l in -1*half_word_len_floor(k)+1..half_word_len_ceil(k), ]) | k in 1..m, ]);
+function int : half_word_len_floor(int: i) = word_lens[i] div 2;
+function int : half_word_len_ceil(int: i) = word_lens[i]-word_lens[i] div 2;
+int: n = 15;
+int: m = 56;
+array [1..n^2] of int: y_pos_map = [7,8,8,7,6,6,6,7,8,9,9,9,9,8,7,6,5,5,5,5,5,6,7,8,9,10,10,10,10,10,10,9,8,7,6,5,4,4,4,4,4,4,4,5,6,7,8,9,10,11,11,11,11,11,11,11,11,10,9,8,7,6,5,4,3,3,3,3,3,3,3,3,3,4,5,6,7,8,9,10,11,12,12,12,12,12,12,12,12,12,12,11,10,9,8,7,6,5,4,3,2,2,2,2,2,2,2,2,2,2,2,3,4,5,6,7,8,9,10,11,12,13,13,13,13,13,13,13,13,13,13,13,13,12,11,10,9,8,7,6,5,4,3,2,1,1,1,1,1,1,1,1,1,1,1,1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,14,14,14,14,14,14,14,14,14,14,14,14,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14];
+array [1..n^2] of int: x_pos_map = [7,7,8,8,8,7,6,6,6,6,7,8,9,9,9,9,9,8,7,6,5,5,5,5,5,5,6,7,8,9,10,10,10,10,10,10,10,9,8,7,6,5,4,4,4,4,4,4,4,4,5,6,7,8,9,10,11,11,11,11,11,11,11,11,11,10,9,8,7,6,5,4,3,3,3,3,3,3,3,3,3,3,4,5,6,7,8,9,10,11,12,12,12,12,12,12,12,12,12,12,12,11,10,9,8,7,6,5,4,3,2,2,2,2,2,2,2,2,2,2,2,2,3,4,5,6,7,8,9,10,11,12,13,13,13,13,13,13,13,13,13,13,13,13,13,12,11,10,9,8,7,6,5,4,3,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,3,4,5,6,7,8,9,10,11,12,13,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+array [1..8] of int: y_delta_map = [0,-1,-1,-1,0,1,1,1];
+array [1..8] of int: x_delta_map = [1,1,0,-1,-1,-1,0,1];
+array [1..m] of int: word_lens = [4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6];
+array [1..n,1..n] of int: board;
+array [1..m] of int: word_pos;
+array [1..m] of int: word_delta;
+array [1..26] of string: _enum_to_string_0_Letter = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"];

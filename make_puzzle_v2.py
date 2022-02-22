@@ -130,15 +130,65 @@ def get_words_for_board_optimize_fast(word_tuples, board_size, packing_constant=
     return word_tuples_opt
 
 
+def get_most_common_letter_indexes(board_words):
+    """
+    Get the frequency of each letter across the entire word set, return, for each word, the index of its highest frequency letter.
+    Break index location ties by choosing the letter closest to the center of the word.
+    """
+    letter_counter = Counter(''.join(board_words))
+    # (1) get the frequency for each letter in the word
+    most_common_letter_idx = []
+    for word in board_words:
+        letter_freqs = [letter_counter[ltr] for ltr in word]
+        highest_letter_freq = max(letter_freqs)
+        # if highest-freq letter only occurs once, add it directly
+        if letter_freqs.count(highest_letter_freq) == 1:
+            most_common_letter_idx.append(letter_freqs.index(highest_letter_freq))
+        # otherwise get positions all all of the most-common letter positions,
+        # and pick the one that's closest to the center, preferring letters closer
+        # to the start of the word
+        else:
+            most_common_inds = [i for i,freq in enumerate(letter_freqs) if freq == highest_letter_freq]
+            ctr_pos = (len(word)-1)/2
+            idx_dist_from_ctr = [abs(ctr_pos - i) for i in most_common_inds]
+            min_dist_from_ctr = min(idx_dist_from_ctr)
+            most_common_closest_to_center_tie_broken = most_common_inds[idx_dist_from_ctr.index(min_dist_from_ctr)]
+            most_common_letter_idx.append(most_common_closest_to_center_tie_broken)
+    return most_common_letter_idx
+
+
+def get_spiral_indices(board_size):
+    """
+    Adapted from https://stackoverflow.com/a/398302/2562771
+    Note: goes down-->right-->up-->left due to change in indexing
+    """
+    y = x = 0
+    dy, dx = 0, -1
+    inds = []
+    for i in range(board_size**2):
+        if (-board_size/2 < y <= board_size/2) and (-board_size/2 < x <= board_size/2):
+            # Figure out how to simplify these expressions down
+            y_shift, x_shift = int(np.floor(y+(board_size-1)/2))+1, int(np.floor(x+(board_size-1)/2))+1
+            inds.append((y_shift, x_shift))
+        if y == x or (y < 0 and y == -x) or (y > 0 and y == 1-x):
+            dy, dx = -dx, dy
+        y, x = y+dy, x+dx
+    return inds
+
+
 def make_data_file(board_words, board_size, strategy, filepath="tmp/data.dzn"):
     """Generated a temporary data.dzn file to pass to the minizinc script."""
+    ys, xs = zip(*get_spiral_indices(board_size))
     with open(filepath, "w") as outfile:
         outfile.write(f"n = {board_size};\n")
         outfile.write(f"m = {len(board_words)};\n\n")
+        outfile.write(f"y_pos_map = [ {', '.join([str(y) for y in ys])} ];\n")
+        outfile.write(f"x_pos_map = [ {', '.join([str(x) for x in xs])} ];\n\n")
         outfile.write(f"max_len = {max([len(word) for word in board_words])};\n")
         outfile.write(f"word_lens = [ {', '.join([str(len(word)) for word in board_words])} ];\n")
+        outfile.write(f"max_freq_idx = [ {', '.join([str(idx) for idx in get_most_common_letter_indexes(board_words)])} ];\n")
         # ADDING THE BUFFER LIKE THIS IS HACKY, MAKE IT CLEANER
-        outfile.write(f"words = [| {' | '.join([', '.join(word + 'E'*(len(board_words[-1])-len(word))) for word in board_words])} |];\n\n")
+        outfile.write(f"words = [| {' | '.join([', '.join(word + 'A'*(len(board_words[-1])-len(word))) for word in board_words])} |];\n\n")
         # Add the search strategy conditional on the input strategy
         if strategy == "min":
             pos_var_strat = "smallest"
@@ -287,8 +337,10 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
             make_data_file([wt.board for wt in word_tuples_to_fit], board_size, strategy, f"tmp/data{i+1}.dzn")
 
         # Run the script
-        cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator.mzn"]
+        # cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator.mzn"]
         # cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator_centered.mzn"]
+        # cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator_centered_max_freq.mzn"]
+        cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator_centered_spiral.mzn"]
         ps = [subprocess.Popen(cmd + [f"tmp/data{i+1}.dzn"], stdout=subprocess.PIPE) for i in range(n_proc)]
 
         time.sleep(timeout)
