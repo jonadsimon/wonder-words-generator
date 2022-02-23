@@ -157,38 +157,48 @@ def get_most_common_letter_indexes(board_words):
     return most_common_letter_idx
 
 
-def get_spiral_indices(board_size):
+def get_jiggled_word_centers(board_words, max_jiggle=0.15):
     """
-    Adapted from https://stackoverflow.com/a/398302/2562771
-    Note: goes down-->right-->up-->left due to change in indexing
+    Get the randomly-perturbed center of each word. Ok to perturb up to 0.15 away from the geometric center.
+    For default max_jiggle=0.15, this translates to the following possibilities for centers for common word lengths:
+    4 : xOxx, xxOx
+    5 : xxOxx
+    6 : xxOxxx, xxxOxx
+    7 : xxOxxxx, xxxOxxx, xxxxOxx
+    8 : xxxOxxxx, xxxxOxxx
+    9 : xxxOxxxxx, xxxxOxxxx, xxxxxOxxx
+    10 : xxxOxxxxxx, xxxxOxxxxx, xxxxxOxxxx, xxxxxxOxxx
     """
-    y = x = 0
-    dy, dx = 0, -1
-    inds = []
-    for i in range(board_size**2):
-        if (-board_size/2 < y <= board_size/2) and (-board_size/2 < x <= board_size/2):
-            # Figure out how to simplify these expressions down
-            y_shift, x_shift = int(np.floor(y+(board_size-1)/2))+1, int(np.floor(x+(board_size-1)/2))+1
-            inds.append((y_shift, x_shift))
-        if y == x or (y < 0 and y == -x) or (y > 0 and y == 1-x):
-            dy, dx = -dx, dy
-        y, x = y+dy, x+dx
-    return inds
+    jiggled_centers = []
+    for word in board_words:
+        possible_centers = [idx for idx in range(len(word)) if abs((len(word)-1)/2 - idx)/len(word) <= max_jiggle]
+        jiggled_centers.append(random.sample(possible_centers, 1)[0])
+    return jiggled_centers
 
 
-def make_data_file(board_words, board_size, strategy, filepath="tmp/data.dzn"):
+def make_data_file(board_words, board_size, strategy, pivot, filepath="tmp/data.dzn"):
     """Generated a temporary data.dzn file to pass to the minizinc script."""
-    ys, xs = zip(*get_spiral_indices(board_size))
     with open(filepath, "w") as outfile:
         outfile.write(f"n = {board_size};\n")
         outfile.write(f"m = {len(board_words)};\n\n")
-        outfile.write(f"y_pos_map = [ {', '.join([str(y) for y in ys])} ];\n")
-        outfile.write(f"x_pos_map = [ {', '.join([str(x) for x in xs])} ];\n\n")
         outfile.write(f"max_len = {max([len(word) for word in board_words])};\n")
         outfile.write(f"word_lens = [ {', '.join([str(len(word)) for word in board_words])} ];\n")
-        outfile.write(f"max_freq_idx = [ {', '.join([str(idx) for idx in get_most_common_letter_indexes(board_words)])} ];\n")
+
+        if pivot == "start":
+            pivots = [0]*len(board_words)
+        elif pivot == "center":
+            pivots = [(len(word)-1) // 2 for word in board_words]
+        elif pivot == "max_freq":
+            pivots = get_most_common_letter_indexes(board_words)
+        elif pivot == "jiggle":
+            pivots = get_jiggled_word_centers(board_words)
+        else:
+            raise ValueError(f"Pivot type must be one of 'start', 'center', 'max_freq', 'jiggle'. Received value: 'f{pivot}'")
+        outfile.write(f"pivot_inds = [ {', '.join([str(idx) for idx in pivots])} ];\n")
+
         # ADDING THE BUFFER LIKE THIS IS HACKY, MAKE IT CLEANER
-        outfile.write(f"words = [| {' | '.join([', '.join(word + 'A'*(len(board_words[-1])-len(word))) for word in board_words])} |];\n\n")
+        outfile.write(f"words = [| {' | '.join([', '.join(word + 'Z'*(len(board_words[-1])-len(word))) for word in board_words])} |];\n\n")
+
         # Add the search strategy conditional on the input strategy
         if strategy == "min":
             pos_var_strat = "smallest"
@@ -305,7 +315,7 @@ def find_words_in_board(board, word_tuples):
     return covered_up_words, doubled_up_words, flattened_deltas
 
 
-def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, relatedness_cutoff, n_proc=4):
+def make_puzzle(topic, board_size, packing_constant, strategy, pivot, optimize_words, relatedness_cutoff, n_proc=4):
     word_tuples, hidden_word_tuple_dict = get_related_words(topic, relatedness_cutoff)
     word_tuples = [wt for wt in word_tuples if len(wt.board) <= board_size]
 
@@ -325,7 +335,7 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
     # Answer: write a separate file for each to avoid needed to juggle read/write times
 
     board_found = False
-    max_retries = 15
+    max_retries = 10
     retries = 0
     timeout = 5
     while retries < max_retries and not board_found:
@@ -334,13 +344,10 @@ def make_puzzle(topic, board_size, packing_constant, strategy, optimize_words, r
             # Shuffle words separately for each run.
             word_tuples_to_fit = reshuffle_words_to_fit(word_tuples_to_fit)
             # Generate Minizinc data file to feed into the parameterizd script.
-            make_data_file([wt.board for wt in word_tuples_to_fit], board_size, strategy, f"tmp/data{i+1}.dzn")
+            make_data_file([wt.board for wt in word_tuples_to_fit], board_size, strategy, pivot, f"tmp/data{i+1}.dzn")
 
         # Run the script
-        # cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator.mzn"]
-        # cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator_centered.mzn"]
-        # cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator_centered_max_freq.mzn"]
-        cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator_centered_spiral.mzn"]
+        cmd = ["/Applications/MiniZincIDE.app/Contents/Resources/minizinc", "--solver", "Chuffed", "MiniZinc_scripts/parameterized_board_generator_pivot.mzn"]
         ps = [subprocess.Popen(cmd + [f"tmp/data{i+1}.dzn"], stdout=subprocess.PIPE) for i in range(n_proc)]
 
         time.sleep(timeout)
@@ -449,6 +456,8 @@ if __name__ == "__main__":
                         help="Ratio of total letters to # board squares (default=1.10)")
     parser.add_argument("--strategy", type=str, default="median",
                         help="Search strategy to use, one of 'min', 'median', 'max' (default='median')")
+    parser.add_argument("--pivot", type=str, default="center",
+                        help="Letter to pivot the words on during optimization, one of 'start', 'center', 'jiggle', 'max_freq' (default='center')")
     parser.add_argument("--optimize-words", type=bool, default=False, action=argparse.BooleanOptionalAction,
                         help="Optimize the word distribution for letter-overlaps in advance (default=False)")
     parser.add_argument("--relatedness-cutoff", type=float, default=0.45,
@@ -457,5 +466,5 @@ if __name__ == "__main__":
 
     # Can't find solutions for words: 'flamboyant', 'coffee', 'dishwasher'
 
-    random.seed(0)
-    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.optimize_words, args.relatedness_cutoff)
+    random.seed(1)
+    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.pivot, args.optimize_words, args.relatedness_cutoff)
