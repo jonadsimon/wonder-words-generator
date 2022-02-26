@@ -466,5 +466,5 @@ if __name__ == "__main__":
 
     # Can't find solutions for words: 'flamboyant', 'coffee', 'dishwasher'
 
-    random.seed(1)
+    random.seed(0)
     make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.pivot, args.optimize_words, args.relatedness_cutoff)

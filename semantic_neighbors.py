@@ -38,6 +38,9 @@ def filter_word_strings(words):
     # Remove words which contain characters other than: a-z/A-Z, spaces, hyphens.
     words = [word for word in words if not re.search(r"[^a-zA-Z\-\s]", word)]
 
+    # Remove words that start with a non-alpha character (e.g. "-graphy")
+    words = [word for word in words if word[0].isalpha()]
+
     # Remove words that are identical to one another.
     # Hacky solution from https://stackoverflow.com/a/17016257/2562771
     words = list(OrderedDict.fromkeys(words))
@@ -119,7 +122,7 @@ def get_related_words(word_list, score_cutoff=0.45, neighbors_cutoff=100):
         words_json = json.loads(blob.contents[0])
 
         # Trim down the words set as a function of score_cutoff and neighbors_cutoff.
-        words.append((words_json["query"],1000))
+        words.append((words_json["query"].lower(),1000))
         for i, term in enumerate(words_json["terms"]):
              if term["score"] > score_cutoff and i < neighbors_cutoff:
                  words.append((term["word"],term["score"]))
