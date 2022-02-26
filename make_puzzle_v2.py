@@ -96,6 +96,7 @@ def get_words_for_board_optimize_fast(word_tuples, board_size, packing_constant=
         better_set_found = False
         for wt1 in word_tuples_incl:
             for wt2 in word_tuples_excl:
+                loop_cnt += 1
                 word_tuples_incl_new = [wt if wt != wt1 else wt2 for wt in word_tuples_incl] # swap out wt1 for wt2
                 word_tuples_excl_new = [wt if wt != wt2 else wt1 for wt in word_tuples_excl] # swap out wt2 for wt1
                 _, _, _, _, min_collision_avoidance_prob, mean_collision_avoidance_prob = get_word_set_stats(word_tuples_sub+word_tuples_incl_new, board_size)
@@ -111,8 +112,11 @@ def get_words_for_board_optimize_fast(word_tuples, board_size, packing_constant=
             # Made it outside the double-loop without short-cutting
             # Means we checked all combinations without finding any improvements, therfore we're done
             break
-        loop_cnt += 1
-    print(f"\nEnded optimization with loop_cnt={loop_cnt}")
+    if loop_cnt < max_loops:
+        print(f"\nEnded optimization with loop_cnt={loop_cnt}")
+    else:
+        print(f"\nOptimization terminated early because exceeded max_loops={int(max_loops)}")
+
 
     word_tuples_opt = word_tuples_sub + word_tuples_incl
     removed_word_tuples = set(word_tuples_naive) - set(word_tuples_opt)
