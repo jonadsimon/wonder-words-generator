@@ -18,7 +18,7 @@ def get_word_set_stats(words, board_size):
     tril_inds = np.tril_indices(len(words), k=-1)
 
     num_words = len(board_words)
-    letter_excess = ahf.get_num_letters_excess(board_words)
+    letter_excess = ahf.get_num_letters_excess(board_words, board_size)
     mean_len = ahf.get_mean_word_length(board_words)
     max_len = ahf.get_max_word_length(board_words)
 
@@ -91,7 +91,7 @@ def get_words_for_board_optimize_fast(word_tuples, board_size, packing_constant=
     print(f"    word_len (mean/max): {mean_word_len:.2f} / {max_word_len}")
     print(f"    collision_avoidance_prob (min/mean): {best_min_collision_avoidance_prob:.6f} / {best_mean_collision_avoidance_prob:.6f}")
 
-    loop_cnt, max_loops = 0, 1e3
+    loop_cnt, max_loops = 0, 2e3
     while loop_cnt < max_loops:
         better_set_found = False
         for wt1 in word_tuples_incl:
@@ -134,7 +134,7 @@ def get_words_for_board_optimize_fast(word_tuples, board_size, packing_constant=
     return word_tuples_opt
 
 
-def get_most_common_letter_indexes(board_words):
+def get_most_common_letter_indexes(board_words, stoch=False):
     """
     Get the frequency of each letter across the entire word set, return, for each word, the index of its highest frequency letter.
     Break index location ties by choosing the letter closest to the center of the word.
@@ -151,13 +151,27 @@ def get_most_common_letter_indexes(board_words):
         # otherwise get positions all all of the most-common letter positions,
         # and pick the one that's closest to the center, preferring letters closer
         # to the start of the word
-        else:
+        elif not stoch:
             most_common_inds = [i for i,freq in enumerate(letter_freqs) if freq == highest_letter_freq]
             ctr_pos = (len(word)-1)/2
             idx_dist_from_ctr = [abs(ctr_pos - i) for i in most_common_inds]
             min_dist_from_ctr = min(idx_dist_from_ctr)
             most_common_closest_to_center_tie_broken = most_common_inds[idx_dist_from_ctr.index(min_dist_from_ctr)]
             most_common_letter_idx.append(most_common_closest_to_center_tie_broken)
+        # if multiple letters have same max_freq, AND are same distance from center, pick one at random
+        else:
+            most_common_inds = [i for i,freq in enumerate(letter_freqs) if freq == highest_letter_freq]
+            ctr_pos = (len(word)-1)/2
+            idx_dist_from_ctr = [abs(ctr_pos - i) for i in most_common_inds]
+            min_dist_from_ctr = min(idx_dist_from_ctr)
+            idx_weights = [1 if dist==min_dist_from_ctr else 0 for dist in idx_dist_from_ctr]
+            most_common_stoch_idx = random.choices(most_common_inds, weights=idx_weights, k=1)[0]
+            most_common_letter_idx.append(most_common_stoch_idx)
+            # # if stochastic is on, then randomly choose the most-common letter as a function of distance to center
+            # # should be 2x more likely for a letter at the center vs a letter at the edges
+            # idx_weights = np.interp(idx_dist_from_ctr, [0,ctr_pos], [2,1])
+            # most_common_stoch_idx = random.choices(most_common_inds, weights=idx_weights, k=1)[0]
+            # print(word, most_common_inds, idx_weights, most_common_stoch_idx)
     return most_common_letter_idx
 
 
@@ -194,6 +208,8 @@ def make_data_file(board_words, board_size, strategy, pivot, filepath="tmp/data.
             pivots = [(len(word)-1) // 2 for word in board_words]
         elif pivot == "max_freq":
             pivots = get_most_common_letter_indexes(board_words)
+        elif pivot == "max_freq_stoch":
+            pivots = get_most_common_letter_indexes(board_words, stoch=True)
         elif pivot == "jiggle":
             pivots = get_jiggled_word_centers(board_words)
         else:
@@ -319,7 +335,7 @@ def find_words_in_board(board, word_tuples):
     return covered_up_words, doubled_up_words, flattened_deltas
 
 
-def make_puzzle(topic, board_size, packing_constant, strategy, pivot, optimize_words, relatedness_cutoff, n_proc=4):
+def make_puzzle(topic, board_size, packing_constant, strategy, pivot, optimize_words, relatedness_cutoff, max_retries, timeout, n_proc=4):
     word_tuples, hidden_word_tuple_dict = get_related_words(topic, relatedness_cutoff)
     word_tuples = [wt for wt in word_tuples if len(wt.board) <= board_size]
 
@@ -339,9 +355,9 @@ def make_puzzle(topic, board_size, packing_constant, strategy, pivot, optimize_w
     # Answer: write a separate file for each to avoid needed to juggle read/write times
 
     board_found = False
-    max_retries = 10
+    max_retries = max_retries
     retries = 0
-    timeout = 5
+    timeout = timeout
     while retries < max_retries and not board_found:
 
         for i in range(n_proc):
@@ -419,8 +435,13 @@ def make_puzzle(topic, board_size, packing_constant, strategy, pivot, optimize_w
     #     k += 1
     if len(blank_locs) not in hidden_word_tuple_dict and len(blank_locs) != 0:
         # raise ValueError(f"Number of remaining blanks does not fit any available word: {len(blank_locs)}")
-        print(f"WARNING: Number of remaining blanks {len(blank_locs)} does not fit any available word")
+        print(f"\nWARNING: Number of remaining blanks {len(blank_locs)} does not fit any available word")
+        random_fill = True
+        non_blank_letters = [board[i][j] for i,row in enumerate(board) for j,letter in enumerate(row) if letter != "_"]
+        for i, j in blank_locs:
+            board[i][j] = random.sample(non_blank_letters, 1)[0]
     else:
+        random_fill = False
         k = 0
         for i, j in blank_locs:
             board[i][j] = hidden_word_tuple_dict[len(blank_locs)].board[k]
@@ -434,15 +455,22 @@ def make_puzzle(topic, board_size, packing_constant, strategy, pivot, optimize_w
         raise ValueError(f"Addition of hidden word caused a word-doubling event ({', '.join([wt.pretty for wt in doubled_up_words])}), script will terminate.\n")
 
     # print(f"\nlength-{len(blank_locs)} word hidden in the board: {hidden_word_tuple_dict[len(blank_locs)].pretty}\n")
-    if not (len(blank_locs) not in hidden_word_tuple_dict and len(blank_locs) != 0):
+    # if not (len(blank_locs) not in hidden_word_tuple_dict and len(blank_locs) != 0):
+    if not random_fill:
         print(f"\nlength-{len(blank_locs)} word hidden in the board: {hidden_word_tuple_dict[len(blank_locs)].pretty}\n")
+    else:
+        print(f"\n{len(blank_locs)} random letters added to the board\n")
 
     print(f"\nhorizontal (fwd/bwd): {delta_cntr[(0,1)]}/{delta_cntr[(0,-1)]}")
     print(f"vertical (fwd/bwd): {delta_cntr[(1,0)]}/{delta_cntr[(-1,0)]}")
     print(f"diagonal du (fwd/bwd): {delta_cntr[(-1,1)]}/{delta_cntr[(1,-1)]}")
     print(f"diagonal ud (fwd/bwd): {delta_cntr[(1,1)]}/{delta_cntr[(-1,-1)]}\n")
     # Print the topic above the board
-    print(f"\nTopic:  {' / '.join(topic)}\n\n")
+    print(f"\nTopic:  {' / '.join(topic)}")
+    if random_fill:
+        print("(no hidden word)\n\n")
+    else:
+        print("(has hidden word)\n\n")
     for row in board:
         print(" ".join(row))
     word_tuples_to_print = sorted(word_tuples_to_fit, key=lambda wt: wt.pretty)
@@ -466,9 +494,13 @@ if __name__ == "__main__":
                         help="Optimize the word distribution for letter-overlaps in advance (default=False)")
     parser.add_argument("--relatedness-cutoff", type=float, default=0.45,
                         help="How closely a word must be semantically related to be included in the word set (default=0.45)")
+    parser.add_argument("--max-retries", type=int, default=10,
+                        help="Number of retries before giving up (default=10)")
+    parser.add_argument("--timeout", type=int, default=5,
+                        help="Seconds to run the optimization before giving up (default=5)")
     args = parser.parse_args()
 
     # Can't find solutions for words: 'flamboyant', 'coffee', 'dishwasher'
 
     random.seed(0)
-    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.pivot, args.optimize_words, args.relatedness_cutoff)
+    make_puzzle(args.topic, args.board_size, args.packing_constant, args.strategy, args.pivot, args.optimize_words, args.relatedness_cutoff, args.max_retries, args.timeout)
